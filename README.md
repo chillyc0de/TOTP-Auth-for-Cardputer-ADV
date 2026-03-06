@@ -48,7 +48,7 @@
 **Способ 1: M5Launcher (Рекомендуется)**
 
 1. Установите [M5Launcher](https://github.com/bmorcelli/m5-launcher) от **bmorcelli** на ваше устройство.
-2. Скачайте [TOTP-Auth-for-Cardputer-ADV.bin](https://) в данном репозитории или через утилиту [M5Burner](https://m5stack.com/pages/download).
+2. Скачайте [TOTP-Auth-for-Cardputer-ADV.bin](https://github.com/chillyc0de/TOTP-Auth-for-Cardputer-ADV/releases) в данном репозитории или через утилиту [M5Burner](https://m5stack.com/pages/download).
 3. Поместите скачанный файл на SD-карту и загрузите прошивку через [M5Launcher](https://github.com/bmorcelli/m5-launcher).
 
 **Способ 2: M5Burner**
@@ -118,7 +118,7 @@ Standalone TOTP authenticator for **M5Stack Cardputer ADV**. It provides encrypt
 **Method 1: M5Launcher (Recommended)**
 
 1. Install [M5Launcher](https://github.com/bmorcelli/m5-launcher) by **bmorcelli** on your device.
-2. Download [TOTP-Auth-for-Cardputer-ADV.bin](https://) from this repository or via [M5Burner](https://m5stack.com/pages/download).
+2. Download [TOTP-Auth-for-Cardputer-ADV.bin](https://github.com/chillyc0de/TOTP-Auth-for-Cardputer-ADV/releases) from this repository or via [M5Burner](https://m5stack.com/pages/download).
 3. Place the downloaded file on your SD card and load the firmware using [M5Launcher](https://github.com/bmorcelli/m5-launcher).
 
 **Method 2: M5Burner**
