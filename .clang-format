@@ -1,0 +1,30 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+BreakBeforeBraces: Allman
+ColumnLimit: 0
+
+# Настройки для условий, циклов и пустых скобок
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortBlocksOnASingleLine: Never
+
+# Запрет на разрыв параметров функций
+BinPackParameters: true
+BinPackArguments: true
+
+# Укрощение отступов
+AlignOperands: false
+AlignAfterOpenBracket: DontAlign
+BreakBeforeTernaryOperators: false
+ContinuationIndentWidth: 4
+
+# Списки и инициализация
+Cpp11BracedListStyle: false
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+---
