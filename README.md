@@ -11,7 +11,7 @@
 ### 🇷🇺 [Русский](#русский) | 🇺🇸 [English](#english)
 
 ---
-
+<a name="русский"></a>
 ## 🇷🇺 Русский
 
 Автономное приложение для генерации TOTP-кодов на устройстве **M5Stack Cardputer ADV**. Позволяет хранить зашифрованные данные на SD-карте и вводить коды на компьютер через USB-соединение (эмуляция клавиатуры).
@@ -81,7 +81,7 @@
 Распространяется под лицензией **MIT**.
 
 ---
-
+<a name="english"></a>
 ## 🇺🇸 English
 
 Standalone TOTP authenticator for **M5Stack Cardputer ADV**. It provides encrypted SD storage and automatic code entry via USB-HID (keyboard emulation).
