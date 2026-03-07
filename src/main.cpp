@@ -8,7 +8,6 @@
 
 #include "qrcode.h"
 #include <ArduinoJson.h>
-#include <FS.h>
 #include <Preferences.h>
 #include <SD.h>
 #include <vector>
@@ -17,12 +16,13 @@
 #include "mbedtls/md.h"
 #include "mbedtls/pkcs5.h"
 
-#define MINIMUM_UNIX_TIMESTAMP 1772755200
+#define MINIMUM_UNIX_TIMESTAMP 1772841600
 #define DEFAULT_UTC_OFFSET 3
 
-const String MINIMUM_DATE_STRING = "20260306000000";
+const String MINIMUM_DATE_STRING = "20260307000000";
 const char *DATA_FILE_PATH = "/by_chillyc0de/TOTP_Auth/data";
-const char *FIRMWARE_VERSION = "v1.0.0";
+const char *SCREENSHOTS_DIR_PATH = "/by_chillyc0de/TOTP_Auth/screenshots/";
+const char *FIRMWARE_VERSION = "v1.0.1";
 
 const int SCREEN_WIDTH = 240;
 const int SCREEN_HEIGHT = 135;
@@ -295,24 +295,33 @@ bool isNextDateTimeDigitValid(String currentString, char nextDigit)
 }
 
 // --- ФУНКЦИИ ДЛЯ РАБОТЫ С ДАННЫМИ И ХРАНИЛИЩЕМ ---
-void ensureDirectoryExists(const char *filePath)
+void ensureDirectoryExists(const char *dirPath, bool isFilePath = false)
 {
-    String path = String(filePath);
-    int lastSlash = path.lastIndexOf('/');
-    if (lastSlash != -1)
-    {
-        String dir = path.substring(0, lastSlash);
-        String currentPath = "";
-        int start = 0;
-        while (start < dir.length())
-        {
-            int slashIdx = dir.indexOf('/', start + 1);
-            if (slashIdx == -1) slashIdx = dir.length();
+    String fullPath = String(dirPath);
 
-            currentPath = dir.substring(0, slashIdx);
-            if (!SD.exists(currentPath)) SD.mkdir(currentPath);
-            start = slashIdx;
-        }
+    // Если это путь к файлу, отрезаем имя файла
+    if (isFilePath)
+    {
+        int lastSlash = fullPath.lastIndexOf('/');
+        if (lastSlash != -1) fullPath = fullPath.substring(0, lastSlash);
+    }
+
+    // Убираем последний "/"
+    if (fullPath.endsWith("/")) fullPath.remove(fullPath.length() - 1);
+
+    String currentPath = "";
+    // Не считаем ведущий "/"
+    int currentIdx = fullPath.startsWith("/") ? 1 : 0;
+    while (currentIdx < fullPath.length())
+    {
+        int slashIdx = fullPath.indexOf('/', currentIdx);
+        // Если слэшей больше нет, берем до конца строки
+        if (slashIdx == -1) slashIdx = fullPath.length();
+
+        currentPath = fullPath.substring(0, slashIdx);
+        if (!SD.exists(currentPath)) SD.mkdir(currentPath);
+
+        currentIdx = slashIdx + 1;
     }
 }
 
@@ -445,7 +454,7 @@ bool loadAccountsFromStorage()
 
 void writeVaultToSD(const uint8_t *salt, const uint8_t *iv, const std::vector<uint8_t> &encBuf)
 {
-    ensureDirectoryExists(DATA_FILE_PATH);
+    ensureDirectoryExists(DATA_FILE_PATH, true);
 
     File file = SD.open(DATA_FILE_PATH, FILE_WRITE);
     if (file)
@@ -1334,7 +1343,7 @@ void handleAddEditAccountInput(Keyboard_Class::KeysState kState, char kChar, boo
             else savedAccounts.push_back(newAcc);
             saveAccountsToStorage();
 
-            drawMessage({ "SAVED" });
+            drawMessage({ "ACCOUNT", "SAVED" });
             delay(400);
 
             switchExternalState(internalState.isEditMode ? STATE_ACTION_MENU : STATE_ACCOUNT_LIST);
@@ -1358,7 +1367,7 @@ void handleDeleteAccountInput(Keyboard_Class::KeysState kState, char kChar, bool
         savedAccounts.erase(savedAccounts.begin() + (deletedIndex - 1));
         saveAccountsToStorage();
 
-        drawMessage({ "DELETED" });
+        drawMessage({ "ACCOUNT", "DELETED" });
         delay(400);
 
         // Смещение индекса на предыдущий элемент списка
@@ -1476,72 +1485,6 @@ void processKeyboardEvents()
 }
 
 // --- ГЛАВНЫЙ ОТРИСОВЩИК ЭКРАНА ---
-#include <FS.h>
-#include <SD.h>
-
-// Переменная для контроля частоты скриншотов
-unsigned long lastScreenshotMillis = 0;
-
-void saveScreenshot()
-{
-    // 1. Проверка кулдауна (не чаще раза в 2 секунды)
-    if (millis() - lastScreenshotMillis < 100) return;
-
-    // 2. Опрос клавиатуры. Делаем скриншот только при зажатой 'S'
-    M5Cardputer.update();
-    if (!M5Cardputer.BtnA.isPressed()) return; // Теперь реагирует на BtnA
-
-    lastScreenshotMillis = millis();
-
-    // Путь к файлу с уникальным именем на основе millis()
-    String path = "/by_chillyc0de/TOTP_Auth/screenshots/scr_" + String(millis()) + ".bmp";
-
-    // Проверка/создание папки
-    if (!SD.exists("/by_chillyc0de/TOTP_Auth/screenshots"))
-    {
-        SD.mkdir("/by_chillyc0de/TOTP_Auth/screenshots");
-    }
-
-    File file = SD.open(path, FILE_WRITE);
-    if (!file) return;
-
-    // Заголовок BMP (240x135, 24-бит)
-    // Высота указана как -135, чтобы изображение не было перевернутым
-    uint32_t fileSize = 54 + (240 * 135 * 3);
-    uint8_t header[54] = {
-        'B', 'M',
-        (uint8_t)(fileSize), (uint8_t)(fileSize >> 8), (uint8_t)(fileSize >> 16), (uint8_t)(fileSize >> 24),
-        0, 0, 0, 0, 54, 0, 0, 0, 40, 0, 0, 0,
-        240, 0, 0, 0,       // Width: 240
-        121, 255, 255, 255, // Height: -135 (2's complement для корректного порядка строк)
-        1, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    };
-
-    file.write(header, 54);
-
-    // Читаем пиксели из спрайта и сохраняем в формате BGR888
-    for (int y = 0; y < 135; y++)
-    {
-        for (int x = 0; x < 240; x++)
-        {
-            uint16_t color = displaySprite.readPixel(x, y);
-            // Преобразование RGB565 в BGR888
-            uint8_t b = (color & 0x001F) << 3;
-            uint8_t g = (color & 0x07E0) >> 3;
-            uint8_t r = (color & 0xF800) >> 8;
-            file.write(b);
-            file.write(g);
-            file.write(r);
-        }
-    }
-    file.close();
-
-    // Короткая визуальная индикация (вспышка яркостью), что скриншот сделан
-    M5Cardputer.Display.setBrightness(0);
-    delay(20);
-    M5Cardputer.Display.setBrightness(100);
-}
-
 void renderUserInterface()
 {
     if (!internalState.requiresRedraw) return;
@@ -1582,12 +1525,93 @@ void renderUserInterface()
     }
 
     displaySprite.pushSprite(0, 0);
-    // Делаем скриншот только если SD карта готова
-    if (SD.cardSize() > 0)
-    {
-        saveScreenshot();
-    }
     internalState.requiresRedraw = false;
+}
+
+// --- ОБРАБОТЧИК СКРИНШОТОВ ---
+void processScreenshotEvent()
+{
+    if (!M5Cardputer.BtnA.isPressed()) return;
+
+    static uint32_t lastScreenshotTime = 0;
+    if (millis() - lastScreenshotTime < 1000) return;
+    lastScreenshotTime = millis();
+
+    ensureDirectoryExists(SCREENSHOTS_DIR_PATH);
+
+    // Инициализация индекса (поиск максимума) при первом вызове
+    static uint16_t nextFileIndex = 0;
+    if (nextFileIndex == 0)
+    {
+        uint16_t maxIndex = 0;
+        String dirPath = SCREENSHOTS_DIR_PATH;
+        if (dirPath.endsWith("/")) dirPath.remove(dirPath.length() - 1);
+
+        File scrDir = SD.open(dirPath);
+        if (scrDir && scrDir.isDirectory())
+        {
+            File scrFile = scrDir.openNextFile();
+            while (scrFile)
+            {
+                // Используем полное имя файла из объекта File
+                const char *fileName = scrFile.name();
+
+                // Ищем "scr_" в имени
+                const char *found = strstr(fileName, "scr_");
+                if (found)
+                {
+                    // Смещаем указатель на длину строки "scr_"
+                    // И берем число сразу после "scr_"
+                    uint16_t idx = atoi(found + 4);
+                    if (idx > maxIndex) maxIndex = idx;
+                }
+                scrFile.close();
+                scrFile = scrDir.openNextFile();
+            }
+            scrDir.close();
+        }
+        nextFileIndex = maxIndex + 1;
+    }
+
+    // Формируем финальное имя и путь
+    char fileName[32];
+    char filePath[128];
+    snprintf(fileName, sizeof(fileName), "scr_%04u.bmp", nextFileIndex);
+    snprintf(filePath, sizeof(filePath), "%s%s", SCREENSHOTS_DIR_PATH, fileName);
+
+    // Запись файла
+    File file = SD.open(filePath, FILE_WRITE);
+    if (!file) return;
+
+    uint32_t fileSize = 54 + (240 * 135 * 3);
+    uint8_t header[54] = {
+        'B', 'M', (uint8_t)(fileSize), (uint8_t)(fileSize >> 8), (uint8_t)(fileSize >> 16), (uint8_t)(fileSize >> 24),
+        0, 0, 0, 0, 54, 0, 0, 0, 40, 0, 0, 0, 240, 0, 0, 0, 121, 255, 255, 255, 1, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    };
+    file.write(header, 54);
+
+    uint8_t lineBuffer[240 * 3];
+    for (int y = 0; y < 135; y++)
+    {
+        int pos = 0;
+        for (int x = 0; x < 240; x++)
+        {
+            uint16_t color = displaySprite.readPixel(x, y);
+            lineBuffer[pos++] = (color & 0x001F) << 3; // B
+            lineBuffer[pos++] = (color & 0x07E0) >> 3; // G
+            lineBuffer[pos++] = (color & 0xF800) >> 8; // R
+        }
+        file.write(lineBuffer, sizeof(lineBuffer));
+    }
+    file.close();
+
+    // Инкремент для следующего файла
+    nextFileIndex++;
+
+    drawMessage({ "SCREENSHOT", "SAVED", fileName });
+    delay(1000);
+    // Принудительное стирание сообщения с экрана
+    internalState.requiresRedraw = true;
 }
 
 void setup()
@@ -1603,11 +1627,6 @@ void setup()
     {
         drawMessage({ "SD NOT FOUND", { "Insert SD and reboot", &fonts::Font2 } });
         while (true) delay(10000);
-    }
-
-    if (!SD.exists("/by_chillyc0de/TOTP_Auth/screenshots"))
-    {
-        SD.mkdir("/by_chillyc0de/TOTP_Auth/screenshots");
     }
 
     USB.begin();
@@ -1635,11 +1654,11 @@ void loop()
         break;
     case STATE_LOGIN:
         // Мигание курсора на экране логина
-        static uint32_t lastCursorBlink = 0;
+        static uint32_t lastCursorBlinkTime = 0;
         // Частота мигания 1к/100 мс = 10к/с
-        if (millis() - lastCursorBlink > 100)
+        if (millis() - lastCursorBlinkTime > 100)
         {
-            lastCursorBlink = millis();
+            lastCursorBlinkTime = millis();
             internalState.requiresRedraw = true;
         }
 
@@ -1654,11 +1673,11 @@ void loop()
     case STATE_ACCOUNT_LIST:
     case STATE_VIEW_TOTP:
         // Обновление данных в реальном времени
-        static time_t lastRecordedTime = 0;
+        static time_t lastRedrawTime = 0;
         time_t currentEpochTime = time(NULL);
-        if (currentEpochTime != lastRecordedTime)
+        if (currentEpochTime != lastRedrawTime)
         {
-            lastRecordedTime = currentEpochTime;
+            lastRedrawTime = currentEpochTime;
             internalState.requiresRedraw = true;
         }
 
@@ -1666,6 +1685,9 @@ void loop()
     }
 
     M5Cardputer.update();
+
+    // Захват экрана перед главным обработчиком клавиатуры
+    processScreenshotEvent();
 
     processKeyboardEvents();
     renderUserInterface();
