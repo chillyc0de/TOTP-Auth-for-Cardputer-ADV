@@ -11,7 +11,9 @@
 ### 🇷🇺 [Русский](#русский) | 🇺🇸 [English](#english)
 
 ---
+
 <a name="русский"></a>
+
 ## 🇷🇺 Русский
 
 Автономное приложение для генерации TOTP-кодов на устройстве **M5Stack Cardputer ADV**. Позволяет хранить зашифрованные данные на SD-карте и вводить коды на компьютер через USB-соединение (эмуляция клавиатуры).
@@ -20,26 +22,39 @@
 
 <table align="center">
 <tr>
-<td align="center"><img src=".screenshots/1.png" width="240"></td>
-<td align="center"><img src=".screenshots/2.png" width="240"></td>
-<td align="center"><img src=".screenshots/3.png" width="240"></td>
-<td align="center"><img src=".screenshots/4.png" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0001.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0002.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0003.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0004.bmp" width="240"></td>
 </tr>
 <tr>
-<td align="center"><img src=".screenshots/5.png" width="240"></td>
-<td align="center"><img src=".screenshots/6.png" width="240"></td>
-<td align="center"><img src=".screenshots/7.png" width="240"></td>
-<td align="center"><img src=".screenshots/8.png" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0005.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0006.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0007.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0008.bmp" width="240"></td>
 </tr>
 <tr>
-<td align="center"><img src=".screenshots/9.png" width="240"></td>
-<td align="center"><img src=".screenshots/10.png" width="240"></td>
-<td align="center"><img src=".screenshots/11.png" width="240"></td>
-<td align="center"><img src=".screenshots/12.png" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0009.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0010.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0011.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0012.bmp" width="240"></td>
 </tr>
 <tr>
-<td align="center"><img src=".screenshots/13.png" width="240"></td>
-<td align="center"><img src=".screenshots/14.png" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0013.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0014.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0015.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0016.bmp" width="240"></td>
+</tr>
+<tr>
+<td align="center"><img src=".screenshots/scr_0017.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0018.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0019.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0020.bmp" width="240"></td>
+</tr>
+<tr>
+<td align="center"><img src=".screenshots/scr_0021.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0022.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0023.bmp" width="240"></td>
 </tr>
 </table>
 
@@ -81,7 +96,9 @@
 Распространяется под лицензией **MIT**.
 
 ---
+
 <a name="english"></a>
+
 ## 🇺🇸 English
 
 Standalone TOTP authenticator for **M5Stack Cardputer ADV**. It provides encrypted SD storage and automatic code entry via USB-HID (keyboard emulation).
@@ -90,26 +107,39 @@ Standalone TOTP authenticator for **M5Stack Cardputer ADV**. It provides encrypt
 
 <table align="center">
 <tr>
-<td align="center"><img src=".screenshots/1.png" width="240"></td>
-<td align="center"><img src=".screenshots/2.png" width="240"></td>
-<td align="center"><img src=".screenshots/3.png" width="240"></td>
-<td align="center"><img src=".screenshots/4.png" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0001.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0002.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0003.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0004.bmp" width="240"></td>
 </tr>
 <tr>
-<td align="center"><img src=".screenshots/5.png" width="240"></td>
-<td align="center"><img src=".screenshots/6.png" width="240"></td>
-<td align="center"><img src=".screenshots/7.png" width="240"></td>
-<td align="center"><img src=".screenshots/8.png" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0005.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0006.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0007.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0008.bmp" width="240"></td>
 </tr>
 <tr>
-<td align="center"><img src=".screenshots/9.png" width="240"></td>
-<td align="center"><img src=".screenshots/10.png" width="240"></td>
-<td align="center"><img src=".screenshots/11.png" width="240"></td>
-<td align="center"><img src=".screenshots/12.png" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0009.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0010.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0011.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0012.bmp" width="240"></td>
 </tr>
 <tr>
-<td align="center"><img src=".screenshots/13.png" width="240"></td>
-<td align="center"><img src=".screenshots/14.png" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0013.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0014.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0015.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0016.bmp" width="240"></td>
+</tr>
+<tr>
+<td align="center"><img src=".screenshots/scr_0017.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0018.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0019.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0020.bmp" width="240"></td>
+</tr>
+<tr>
+<td align="center"><img src=".screenshots/scr_0021.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0022.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0023.bmp" width="240"></td>
 </tr>
 </table>
 
