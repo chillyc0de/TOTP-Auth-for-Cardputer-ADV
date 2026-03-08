@@ -55,6 +55,7 @@
 <td align="center"><img src=".screenshots/scr_0021.bmp" width="240"></td>
 <td align="center"><img src=".screenshots/scr_0022.bmp" width="240"></td>
 <td align="center"><img src=".screenshots/scr_0023.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0024.bmp" width="240"></td>
 </tr>
 </table>
 
@@ -140,6 +141,7 @@ Standalone TOTP authenticator for **M5Stack Cardputer ADV**. It provides encrypt
 <td align="center"><img src=".screenshots/scr_0021.bmp" width="240"></td>
 <td align="center"><img src=".screenshots/scr_0022.bmp" width="240"></td>
 <td align="center"><img src=".screenshots/scr_0023.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0024.bmp" width="240"></td>
 </tr>
 </table>
 
