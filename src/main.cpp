@@ -1,3 +1,18 @@
+/**
+ * ============================================================================
+ * TOTP Authenticator for M5Stack Cardputer ADV
+ * Copyright (c) 2026 chillyc0de
+ * Licensed under the MIT License.
+ * * This software incorporates components from the following third-party works:
+ * - ArduinoJson: Copyright (c) 2014-2025 Benoit BLANCHON (MIT License)
+ * - TOTP-Arduino: Copyright (c) Luca Dentella (Apache License 2.0)
+ * - QRCode: Copyright (c) 2017 Richard Moore, Project Nayuki (MIT License)
+ * - AESLib: Copyright (c) 1998-2008 Brian Gladman, Mark Tillotson (Custom permissive)
+ * - M5Cardputer: Copyright (c) M5Stack (SDK)
+ * * See the NOTICE.txt or LICENSE file in the repository for full license texts.
+ * ============================================================================
+ */
+
 #include <Arduino.h>
 
 #include "USB.h"
