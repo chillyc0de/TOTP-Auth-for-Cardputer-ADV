@@ -22,7 +22,7 @@
 const String MINIMUM_DATE_STRING = "20260309000000";
 const char *DATA_FILE_PATH = "/by_chillyc0de/TOTP_Auth/data";
 const char *SCREENSHOTS_DIR_PATH = "/by_chillyc0de/TOTP_Auth/screenshots/";
-const char *FIRMWARE_VERSION = "v1.1.0";
+const char *FIRMWARE_VERSION = "v1.1.1";
 
 const int SCREEN_WIDTH = 240;
 const int SCREEN_HEIGHT = 135;
@@ -261,7 +261,7 @@ void deriveKey(const String &password, const uint8_t *salt, uint8_t *key) {
     mbedtls_md_context_t ctx;
     mbedtls_md_init(&ctx);
     mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 1);
-    mbedtls_pkcs5_pbkdf2_hmac(&ctx, (const unsigned char *)password.c_str(), password.length(), salt, 16, 2000, 32, key);
+    mbedtls_pkcs5_pbkdf2_hmac(&ctx, (const unsigned char *)password.c_str(), password.length(), salt, 16, 10000, 32, key);
     mbedtls_md_free(&ctx);
 }
 
