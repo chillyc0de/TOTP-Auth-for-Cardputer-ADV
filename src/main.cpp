@@ -217,7 +217,7 @@ struct MenuOption {
 
 const std::vector<MenuOption> settingsMenuOptions = {
     {
-        "[Enter] Return to accounts",
+        "[Enter]: Return to accounts",
         []() {
             switchExternalState(STATE_ACCOUNT_LIST);
         },
@@ -635,7 +635,7 @@ void drawMessage(std::vector<MessageLine> lines, uint16_t bgColor = UI_BG, uint1
 // --- ОТРИСОВКА ЭКРАНОВ ---
 void renderSplashScreen() {
     displaySprite.fillSprite(UI_BG);
-    drawFooter({"    [Any]: Guide      [Enter]: Login"});
+    drawFooter({"   [Any]: Guide      [Enter]: Login"});
 
     // Настройки заголовка
     int titleX = SCREEN_WIDTH / 2;
@@ -843,7 +843,7 @@ void renderTimeSetupScreen() {
     displaySprite.fillSprite(UI_BG);
     String utcString = "UTC" + String(internalState.timeSetupUTCOffsetInput >= 0 ? "+" : "") + String(internalState.timeSetupUTCOffsetInput);
     drawHeader("TIME SETUP", utcString);
-    drawFooter({"[Esc]: Back [Arrows]: UTC [Enter]: Set"});
+    drawFooter({"[Esc]: Back  [Arrows]: UTC [Enter]: Set"});
 
     displaySprite.setTextDatum(middle_center);
     displaySprite.setFont(&fonts::Font4);
