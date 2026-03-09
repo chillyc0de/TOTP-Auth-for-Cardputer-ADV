@@ -1,0 +1,87 @@
+========================================================================
+Third-Party Software Notices and Licenses
+========================================================================
+This project ("TOTP Authenticator for M5Stack Cardputer ADV") incorporates 
+software from the following third-party works. The licenses and copyright 
+notices for these works are reproduced below.
+
+------------------------------------------------------------------------
+1. ArduinoJson
+------------------------------------------------------------------------
+The MIT License (MIT)
+Copyright © 2014-2025, Benoit BLANCHON
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+------------------------------------------------------------------------
+2. QRCode
+------------------------------------------------------------------------
+The MIT License (MIT)
+
+This library is written and maintained by Richard Moore.
+Major parts were derived from Project Nayuki's library.
+
+Copyright (c) 2017 Richard Moore (https://github.com/ricmoo/QRCode)
+Copyright (c) 2017 Project Nayuki (https://www.nayuki.io/page/qr-code-generator-library)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+------------------------------------------------------------------------
+3. AESLib (thinx-aes-lib)
+------------------------------------------------------------------------
+Copyright (c) 1998-2008, Brian Gladman, Worcester, UK. All rights reserved.
+Derived by Mark Tillotson 2012-01-23. Modified by george spanos 2014-12-16.
+
+LICENSE TERMS
+
+The redistribution and use of this software (with or without changes)
+is allowed without the payment of fees or royalties provided that:
+
+ 1. source code distributions include the above copyright notice, this
+    list of conditions and the following disclaimer;
+
+ 2. binary distributions include the above copyright notice, this list
+    of conditions and the following disclaimer in their documentation;
+
+ 3. the name of the copyright holder is not used to endorse products
+    built using this software without specific written permission.
+
+DISCLAIMER
+
+This software is provided 'as is' with no explicit or implied warranties
+in respect of its properties, including, but not limited to, correctness
+and/or fitness for purpose.
+
+------------------------------------------------------------------------
+4. TOTP-Arduino
+------------------------------------------------------------------------
+Copyright 2013-2023 Luca Dentella
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+(A copy of the full Apache License, Version 2.0 can be found at: 
+http://www.apache.org/licenses/LICENSE-2.0)
+
+------------------------------------------------------------------------
+5. M5Cardputer SDK
+------------------------------------------------------------------------
+Copyright (c) M5Stack.
+Used as the hardware abstraction layer for the M5Stack Cardputer device.
