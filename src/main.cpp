@@ -31,13 +31,19 @@
 #include "mbedtls/md.h"
 #include "mbedtls/pkcs5.h"
 
-#define MINIMUM_UNIX_TIMESTAMP 1773014400
-#define DEFAULT_UTC_OFFSET 3
+#define MINIMUM_UNIX_TS 1773532800
+#define MINIMUM_DATE "20260315000000"
+#define DEFAULT_UTC 3
+#define DEFAULT_BRIGHTNESS 130
+#define DEFAULT_VOLUME 80
+#define DEFAULT_SOUND_ES false
+#define DEFAULT_SOUND_KBD 1
+#define DEFAULT_SOUND_SCR true
+#define DEFAULT_SOUND_TOTP 1
 
-const String MINIMUM_DATE_STRING = "20260309000000";
 const char *DATA_FILE_PATH = "/by_chillyc0de/TOTP_Auth/data";
 const char *SCREENSHOTS_DIR_PATH = "/by_chillyc0de/TOTP_Auth/screenshots/";
-const char *FIRMWARE_VERSION = "v1.1.1";
+const char *FIRMWARE_VERSION = "v1.3.0";
 
 const int SCREEN_WIDTH = 240;
 const int SCREEN_HEIGHT = 135;
@@ -76,26 +82,34 @@ const std::vector<String> userGuideLines = {
     " press [Enter] to auto-type the",
     " code (USB-HID keyboard mode).",
     "",
-    "-------- 4. SCREENSHOTS ---------",
+    "-------- 4. AUDIO FEEDBACK --------",
+    " Navigation: Unique tone patterns",
+    " for each screen transition.",
+    " Codes: Morse audio for TOTP.",
+    " Modes: Switch between Morse or",
+    " simple tones in Sound Settings.",
+    "",
+    "-------- 5. SCREENSHOTS ---------",
     " Press [BtnGO] to capture screen.",
     " Saved as .bmp to SD card.",
     " Folder path: /by_chillyc0de/TOTP_Auth/screenshots/",
     " Useful for debugging & logs.",
     "",
-    "----------- 5. SECURITY -----------",
+    "----------- 6. SECURITY -----------",
     " Vault: AES-256 encrypted.",
     " File path: /by_chillyc0de/TOTP_Auth/data",
     " NO PASSWORD RECOVERY! If you",
     " forget it, data is lost.",
     "",
-    "---------- 6. SETTINGS -----------",
-    " Press [Esc] in Account list to",
-    " access the Settings menu:",
-    " * Return: Go back to accounts.",
+    "---------- 7. SETTINGS -----------",
+    " Press [Esc] in Account list:",
     " * Time setup: Re-sync clock.",
-    " * Change password: Set new key.",
+    " * Brightness: Adjust backlight.",
+    " * Volume: Speaker loudness.",
+    " * Sound type: Tones vs Morse.",
+    " * Password: Set new master key.",
     "",
-    "------- 7. LICENSE & RIGHTS -------",
+    "------- 8. LICENSE & RIGHTS -------",
     " Provided 'AS IS' under MIT License.",
     " Use at your own risk. The author",
     " is not responsible for lost data",
@@ -109,6 +123,9 @@ enum ExternalState {
     STATE_TIME_SETUP,
     STATE_SETTINGS_MENU,
     STATE_CHANGE_PASSWORD,
+    STATE_BRIGHTNESS_SETUP,
+    STATE_VOLUME_SETUP,
+    STATE_SOUND_SETUP,
     STATE_ACCOUNT_LIST,
     STATE_ACTION_MENU,
     STATE_ADD_EDIT_ACCOUNT,
@@ -137,13 +154,26 @@ struct InternalState {
     uint32_t loginErrorClearTime = 0;
 
     // Time setup
-    String timeSetupTimeInput = "";
-    int timeSetupUTCOffsetInput = DEFAULT_UTC_OFFSET;
+    String timeSetupTimeInput = MINIMUM_DATE;
+    int timeSetupUTCOffsetInput = DEFAULT_UTC;
 
     // Settings menu
     int settingsMenuSelectedIndex = 0;
     int settingsMenuScrollOffset = 0;
     bool initialTimeSetupDone = false;
+
+    // Brightness setup
+    uint8_t brightnessSetupBrightnessCounter = DEFAULT_BRIGHTNESS;
+
+    // Volume setup
+    uint8_t volumeSetupVolumeCounter = DEFAULT_VOLUME;
+
+    // Sound setup
+    uint8_t soundSetupFieldIdx = 0;
+    bool soundSetupExternalState = DEFAULT_SOUND_ES;
+    uint8_t soundSetupKeyboard = DEFAULT_SOUND_KBD;
+    uint8_t soundSetupTOTP = DEFAULT_SOUND_TOTP;
+    bool soundSetupScreenshot = DEFAULT_SOUND_SCR;
 
     // Change password
     String changePasswordInput = "";
@@ -190,15 +220,451 @@ LGFX_Sprite displaySprite(&M5.Lcd);
 Preferences systemPreferences;
 InternalState internalState;
 
+// --- ЗВУКОВАЯ ИНДИКАЦИЯ ---
+void playMorse(const char *code, int freq, int dot, int dash, int pause) {
+    while (*code) {
+        if (*code == '.') M5.Speaker.tone(freq, dot);
+        else if (*code == '-') M5.Speaker.tone(freq, dash);
+        delay(pause);
+        code++;
+    }
+}
+
+void playMorseTone(char kChar, Keyboard_Class::KeysState kState = {}) {
+    if (internalState.volumeSetupVolumeCounter == 0) return;
+
+    int freq = 1000;
+    const int dot = 50;
+    const int dash = 150;
+    const int pause = 60;
+
+    const char *morse = nullptr;
+
+    // Комбинации Fn
+    if (kState.fn) {
+        freq = 1400;
+
+        if (kChar == ';') morse = "..-";             // U (UP)
+        else if (kChar == '.') morse = "-..";        // D (DOWN)
+        else if (kChar == ',') morse = ".-..";       // L (LEFT)
+        else if (kChar == '/') morse = ".-.";        // R (RIGHT)
+        else if (kChar == '`') morse = ". ... -.-."; // ESC
+        else if (kState.del) morse = "-.. . .-..";   // DEL
+
+        if (morse) {
+            playMorse(morse, freq, dot, dash, pause);
+            return;
+        }
+    }
+
+    // Клавиши состояния
+    if (kState.enter) {
+        freq = 1200;
+        playMorse(".", freq, dot, dash, pause);  // E
+        playMorse("-.", freq, dot, dash, pause); // N
+        return;
+    }
+    if (kState.tab) {
+        freq = 1200;
+        playMorse("-", freq, dot, dash, pause);    // T
+        playMorse(".-", freq, dot, dash, pause);   // A
+        playMorse("-...", freq, dot, dash, pause); // B
+        return;
+    }
+    if (kState.del && !kState.fn) {
+        freq = 1200;
+        playMorse("-...", freq, dot, dash, pause); // B
+        return;
+    }
+    // Пробел
+    if (kChar == ' ') {
+        freq = 900;
+        playMorse("...", freq, dot, dash, pause);  // S
+        playMorse(".--.", freq, dot, dash, pause); // P
+        return;
+    }
+
+    // Символы
+    switch (tolower(kChar)) {
+    // Буквы
+    case 'a':
+        morse = ".-";
+        break;
+    case 'b':
+        morse = "-...";
+        break;
+    case 'c':
+        morse = "-.-.";
+        break;
+    case 'd':
+        morse = "-..";
+        break;
+    case 'e':
+        morse = ".";
+        break;
+    case 'f':
+        morse = "..-.";
+        break;
+    case 'g':
+        morse = "--.";
+        break;
+    case 'h':
+        morse = "....";
+        break;
+    case 'i':
+        morse = "..";
+        break;
+    case 'j':
+        morse = ".---";
+        break;
+    case 'k':
+        morse = "-.-";
+        break;
+    case 'l':
+        morse = ".-..";
+        break;
+    case 'm':
+        morse = "--";
+        break;
+    case 'n':
+        morse = "-.";
+        break;
+    case 'o':
+        morse = "---";
+        break;
+    case 'p':
+        morse = ".--.";
+        break;
+    case 'q':
+        morse = "--.-";
+        break;
+    case 'r':
+        morse = ".-.";
+        break;
+    case 's':
+        morse = "...";
+        break;
+    case 't':
+        morse = "-";
+        break;
+    case 'u':
+        morse = "..-";
+        break;
+    case 'v':
+        morse = "...-";
+        break;
+    case 'w':
+        morse = ".--";
+        break;
+    case 'x':
+        morse = "-..-";
+        break;
+    case 'y':
+        morse = "-.--";
+        break;
+    case 'z':
+        morse = "--..";
+        break;
+
+    // Цифры
+    case '1':
+        morse = ".----";
+        break;
+    case '2':
+        morse = "..---";
+        break;
+    case '3':
+        morse = "...--";
+        break;
+    case '4':
+        morse = "....-";
+        break;
+    case '5':
+        morse = ".....";
+        break;
+    case '6':
+        morse = "-....";
+        break;
+    case '7':
+        morse = "--...";
+        break;
+    case '8':
+        morse = "---..";
+        break;
+    case '9':
+        morse = "----.";
+        break;
+    case '0':
+        morse = "-----";
+        break;
+
+    // Спецсимволы
+    case '.':
+        morse = ".-.-.-";
+        break;
+    case ',':
+        morse = "--..--";
+        break;
+    case '?':
+        morse = "..--..";
+        break;
+    case '!':
+        morse = "-.-.--";
+        break;
+    case ':':
+        morse = "---...";
+        break;
+    case ';':
+        morse = "-.-.-.";
+        break;
+    case '=':
+        morse = "-...-";
+        break;
+    case '-':
+        morse = "-....-";
+        break;
+    case '_':
+        morse = "..--.-";
+        break;
+    case '"':
+        morse = ".-..-.";
+        break;
+    case '\'':
+        morse = ".----.";
+        break;
+    case '/':
+        morse = "-..-.";
+        break;
+    case '(':
+        morse = "-.--.";
+        break;
+    case ')':
+        morse = "-.--.-";
+        break;
+    case '+':
+        morse = ".-.-.";
+        break;
+    case '@':
+        morse = ".--.-.";
+        break;
+
+    default:
+        break;
+    }
+
+    if (morse) playMorse(morse, freq, dot, dash, pause);
+    else M5.Speaker.tone(freq, 25);
+}
+
+void playMorseTOTPCode(String totpCode) {
+    if (internalState.volumeSetupVolumeCounter == 0) return;
+    for (uint i = 0; i < totpCode.length(); i++) {
+        playMorseTone(totpCode[i]);
+        delay(100);
+    }
+}
+
+void playKeyTone(char kChar, Keyboard_Class::KeysState kState = {}) {
+    if (internalState.volumeSetupVolumeCounter == 0) return;
+
+    int freq = 1000;
+    const int dur = 40;
+
+    // --- Комбинации Fn ---
+    if (kState.fn) {
+        if (kChar == ';') freq = 1400;      // UP
+        else if (kChar == '.') freq = 1350; // DOWN
+        else if (kChar == ',') freq = 1300; // LEFT
+        else if (kChar == '/') freq = 1250; // RIGHT
+        else if (kChar == '`') freq = 1500; // ESCAPE
+        else if (kState.del) freq = 1200;   // DELETE
+
+        M5.Speaker.tone(freq, dur);
+        return;
+    }
+
+    // Клавиши состояния
+    if (kState.enter) freq = 1200;
+    else if (kState.tab) freq = 1100;
+    else if (kState.del) freq = 1000;
+
+    // Пробел
+    else if (kChar == ' ') freq = 900;
+
+    // Символы
+    else {
+        switch (tolower(kChar)) {
+        case 'a':
+        case 'b':
+        case 'c':
+            freq = 1000;
+            break;
+        case 'd':
+        case 'e':
+        case 'f':
+            freq = 1050;
+            break;
+        case 'g':
+        case 'h':
+        case 'i':
+            freq = 1100;
+            break;
+        case 'j':
+        case 'k':
+        case 'l':
+            freq = 1150;
+            break;
+        case 'm':
+        case 'n':
+        case 'o':
+            freq = 1200;
+            break;
+        case 'p':
+        case 'q':
+        case 'r':
+        case 's':
+            freq = 1250;
+            break;
+        case 't':
+        case 'u':
+        case 'v':
+            freq = 1300;
+            break;
+        case 'w':
+        case 'x':
+        case 'y':
+        case 'z':
+            freq = 1350;
+            break;
+        case '0':
+        case '1':
+        case '2':
+            freq = 900;
+            break;
+        case '3':
+        case '4':
+        case '5':
+            freq = 950;
+            break;
+        case '6':
+        case '7':
+        case '8':
+            freq = 1000;
+            break;
+        case '9':
+            freq = 1050;
+            break;
+            // Спецсимволы
+        default:
+            freq = 950;
+            break;
+        }
+    }
+
+    M5.Speaker.tone(freq, dur);
+}
+
+void playExternalStateTone(ExternalState externalState) {
+    if (internalState.volumeSetupVolumeCounter == 0) return;
+
+    switch (externalState) {
+    case STATE_SPLASH_SCREEN:
+        M5.Speaker.tone(700, 80);
+        delay(80);
+        M5.Speaker.tone(900, 80);
+        break;
+    case STATE_GUIDE:
+        M5.Speaker.tone(600, 100);
+        delay(100);
+        M5.Speaker.tone(800, 100);
+        break;
+    case STATE_LOGIN:
+        M5.Speaker.tone(800, 60);
+        delay(60);
+        M5.Speaker.tone(1000, 60);
+        break;
+    case STATE_TIME_SETUP:
+        M5.Speaker.tone(750, 60);
+        delay(100);
+        M5.Speaker.tone(1000, 60);
+        delay(100);
+        M5.Speaker.tone(750, 60);
+        break;
+    case STATE_SETTINGS_MENU:
+        M5.Speaker.tone(750, 60);
+        delay(60);
+        M5.Speaker.tone(900, 60);
+        delay(60);
+        M5.Speaker.tone(1050, 60);
+        break;
+    case STATE_CHANGE_PASSWORD:
+        M5.Speaker.tone(750, 60);
+        delay(60);
+        M5.Speaker.tone(500, 100);
+        break;
+    case STATE_BRIGHTNESS_SETUP:
+        M5.Speaker.tone(750, 60);
+        delay(60);
+        M5.Speaker.tone(1300, 60);
+        break;
+    case STATE_VOLUME_SETUP:
+        M5.Speaker.tone(750, 60);
+        delay(60);
+        M5.Speaker.tone(550, 60);
+        break;
+    case STATE_SOUND_SETUP:
+        M5.Speaker.tone(750, 60);
+        delay(60);
+        M5.Speaker.tone(850, 40);
+        delay(40);
+        M5.Speaker.tone(750, 60);
+        break;
+    case STATE_ACCOUNT_LIST:
+        M5.Speaker.tone(850, 60);
+        delay(60);
+        M5.Speaker.tone(1050, 80);
+        break;
+    case STATE_ACTION_MENU:
+        M5.Speaker.tone(1050, 60);
+        delay(60);
+        M5.Speaker.tone(1200, 60);
+        break;
+    case STATE_ADD_EDIT_ACCOUNT:
+        M5.Speaker.tone(1050, 60);
+        delay(60);
+        M5.Speaker.tone(1500, 80);
+        break;
+    case STATE_DELETE_ACCOUNT:
+        M5.Speaker.tone(1050, 80);
+        delay(80);
+        M5.Speaker.tone(500, 150);
+        break;
+    case STATE_VIEW_TOTP:
+        M5.Speaker.tone(1050, 60);
+        delay(60);
+        M5.Speaker.tone(1350, 120);
+        break;
+    case STATE_VIEW_QR:
+        M5.Speaker.tone(1050, 50);
+        delay(50);
+        M5.Speaker.tone(1150, 50);
+        delay(50);
+        M5.Speaker.tone(1250, 50);
+        break;
+    }
+}
+
+// --- ПЕРЕКЛЮЧЕНИЕ ЭКРАНОВ ---
 void switchExternalState(ExternalState externalState) {
     internalState.currentExternalState = externalState;
     internalState.requiresRedraw = true;
 
+    // Подстановка текущего времени
     if (externalState == STATE_TIME_SETUP) {
         time_t nowTime = time(NULL);
-        if (nowTime < MINIMUM_UNIX_TIMESTAMP) {
-            internalState.timeSetupTimeInput = systemPreferences.getString("TOTP_Auth/time", MINIMUM_DATE_STRING);
-            internalState.timeSetupUTCOffsetInput = systemPreferences.getInt("TOTP_Auth/utc", DEFAULT_UTC_OFFSET);
+        if (nowTime < MINIMUM_UNIX_TS) {
+            internalState.timeSetupTimeInput = systemPreferences.getString("TA/time", MINIMUM_DATE);
+            internalState.timeSetupUTCOffsetInput = systemPreferences.getChar("TA/utc", DEFAULT_UTC);
         } else {
             time_t localTime = nowTime + (internalState.timeSetupUTCOffsetInput * 3600);
             struct tm *t = gmtime(&localTime);
@@ -207,6 +673,9 @@ void switchExternalState(ExternalState externalState) {
             internalState.timeSetupTimeInput = String(buf);
         }
     }
+
+    // Звуковая индикация
+    if (internalState.soundSetupExternalState) playExternalStateTone(externalState);
 }
 
 // --- СТАТИЧНЫЕ МЕНЮ ---
@@ -226,6 +695,24 @@ const std::vector<MenuOption> settingsMenuOptions = {
         "Time setup",
         []() {
             switchExternalState(STATE_TIME_SETUP);
+        },
+    },
+    {
+        "Brightness setup",
+        []() {
+            switchExternalState(STATE_BRIGHTNESS_SETUP);
+        },
+    },
+    {
+        "Volume setup",
+        []() {
+            switchExternalState(STATE_VOLUME_SETUP);
+        },
+    },
+    {
+        "Sound setup",
+        []() {
+            switchExternalState(STATE_SOUND_SETUP);
         },
     },
     {
@@ -361,7 +848,7 @@ bool isNextDateTimeDigitValid(String currentString, char nextDigit) {
     int position = currentString.length();
     int digitValue = nextDigit - '0';
 
-    if (potentialString < MINIMUM_DATE_STRING.substring(0, length)) return false;
+    if (potentialString < ((String)MINIMUM_DATE).substring(0, length)) return false;
     if (position < 4) return true;
     if (position == 4) return (digitValue == 0 || digitValue == 1);
     if (position == 5) return (currentString[4] - '0' == 0) ? (digitValue >= 1 && digitValue <= 9) : (digitValue >= 0 && digitValue <= 2);
@@ -615,7 +1102,26 @@ void drawScrollbar(int current, int visible, int total, int yStart, int height) 
     displaySprite.fillRect(SCREEN_WIDTH - 3, barY, 2, barHeight, UI_ACCENT);
 }
 
-void drawMessage(std::vector<MessageLine> lines, uint16_t bgColor = UI_BG, uint16_t fgColor = UI_FG) {
+void drawProgressBar(float progress, uint16_t fgColor = UI_ACCENT, uint16_t bgColor = UI_BG) {
+    // progress от 0.0 до 1.0
+    progress = max(0.0f, min(progress, 1.0f));
+
+    // Обводка прогресс бара
+    int w = SCREEN_WIDTH;
+    int h = 12; // Высота бара
+    int x = 0;
+    int y = SCREEN_HEIGHT - h - 18;
+    displaySprite.drawRect(x, y, w, h, UI_FG);
+
+    // Внутреннее пространство
+    displaySprite.fillRect(x + 1, y + 1, w - 2, h - 2, bgColor);
+
+    // Заливка полосы прогресса
+    int fillW = (int)((w - 4) * progress);
+    if (fillW > 0) displaySprite.fillRect(x + 2, y + 2, fillW, h - 4, fgColor);
+}
+
+void drawMessage(std::vector<MessageLine> lines, uint16_t fgColor = UI_FG, uint16_t bgColor = UI_BG) {
     int numLines = std::min((int)lines.size(), 3);
     int lineHeight = 30; // Расстояние между центрами строк
 
@@ -754,7 +1260,7 @@ void renderGuideScreen() {
 
 void renderLoginScreen() {
     if (internalState.loginErrorClearTime > 0) {
-        drawMessage({"WRONG", "PASSWORD"}, UI_DANGER);
+        drawMessage({"WRONG", "PASSWORD"}, UI_FG, UI_DANGER);
         delay(400);
         return;
     }
@@ -876,6 +1382,114 @@ void renderSettingsMenuScreen() {
     }
 }
 
+void renderBrightnessSetupScreen() {
+    displaySprite.fillSprite(UI_BG);
+    drawHeader("BRIGHTNESS SETUP");
+    drawProgressBar((float)internalState.brightnessSetupBrightnessCounter / 255.0f, UI_VALID);
+    drawFooter({"[Esc]: Back  [Arrows]: Led [Enter]: Set"});
+
+    // Обводка палитры
+    int w = SCREEN_WIDTH;
+    int h = 66;
+    int x = 0;
+    int y = 31;
+    displaySprite.drawRect(x, y, w, h, UI_FG);
+
+    uint16_t testColors[] = {
+        UI_FG,
+        UI_ACCENT,
+        UI_VALID,
+        UI_DANGER,
+        UI_MUTED,
+        UI_BG,
+    };
+
+    int numCols = 6;
+    int numRows = 2;
+    int innerW = w - 2;
+    int innerH = h - 2;
+    int rowH = innerH / numRows;
+
+    for (int row = 0; row < numRows; row++) {
+        for (int col = 0; col < numCols; col++) {
+            // Расчет горизонтальных границ внутри рамки
+            int x1 = (col * innerW) / numCols;
+            int x2 = ((col + 1) * innerW) / numCols;
+            int currentBarW = x2 - x1;
+
+            // Смещение индекса для шахматного порядка
+            int colorIndex = (col + (row * 3)) % 6;
+
+            // Позиция Y с учетом отступа от рамки (+1)
+            int currY = y + 1 + (row * rowH);
+
+            // Рисуем цветной блок
+            // x + 1 — это отступ от левого края рамки
+            displaySprite.fillRect(x + 1 + x1, currY, currentBarW, rowH, testColors[colorIndex]);
+        }
+    }
+}
+
+void renderVolumeSetupScreen() {
+    displaySprite.fillSprite(UI_BG);
+    drawHeader("VOLUME SETUP");
+    drawProgressBar((float)internalState.volumeSetupVolumeCounter / 255.0f, UI_DANGER);
+    drawFooter({"[Esc]: Back  [Arrows]: Vol [Enter]: Set"});
+
+    // Обводка графика
+    int w = SCREEN_WIDTH;
+    int h = 66;
+    int x = 0;
+    int y = 31;
+    displaySprite.drawRect(x, y, w, h, UI_FG);
+
+    // График
+    int numBars = 30;
+    float barStep = (float)(w - 4) / numBars;
+    int barGap = 2;
+    int barW = (int)barStep - barGap;
+    float volMultiplier = internalState.volumeSetupVolumeCounter / 255.0f;
+    for (int i = 0; i < numBars; i++) {
+        float noise = (sin(millis() / 150.0f + i * 0.8f) + 1.0f) / 2.0f;
+        int maxH = h - 6;
+        int barH = (int)(maxH * volMultiplier * noise);
+
+        if (internalState.volumeSetupVolumeCounter > 0 && barH < 2) barH = 2;
+
+        int bx = x + 2 + (int)(i * barStep);
+        int by = y + h - barH - 2;
+
+        // Столбик
+        displaySprite.fillRect(bx, by, barW, barH, UI_DANGER);
+
+        // Пик
+        displaySprite.fillRect(bx, by - 2, barW, 1, UI_FG);
+    }
+}
+
+void renderSoundSetupScreen() {
+    const char *kbdModes[] = {"OFF", "SIMPLE", "MORSE"};
+    const char *totpModes[] = {"OFF", "SIMPLE", "MORSE"};
+    String fields[4] = {
+        "X-Screen: < " + String(internalState.soundSetupExternalState ? "ON" : "OFF") + " >",
+        "Keyboard: < " + String(kbdModes[internalState.soundSetupKeyboard]) + " >",
+        "TOTP: < " + String(totpModes[internalState.soundSetupTOTP]) + " >",
+        "Screenshot: < " + String(internalState.soundSetupScreenshot ? "ON" : "OFF") + " >",
+    };
+
+    displaySprite.fillSprite(UI_BG);
+    drawHeader("SOUND SETUP");
+    drawFooter({"   [Tab]: Switch    [Arrows]: Change", "   [Esc]: Cancel    [Enter]: Confirm"});
+
+    displaySprite.setTextDatum(top_left);
+    displaySprite.setFont(&fonts::Font2);
+
+    for (int i = 0; i < 4; i++) {
+        displaySprite.setTextColor(internalState.soundSetupFieldIdx == i ? UI_VALID : UI_FG);
+        displaySprite.drawString(fields[i], 10, 34 + (i * 15));
+    }
+}
+
 void renderChangePasswordScreen() {
     const int charWidth = 24;
     const int maxCharsPerLine = 10;
@@ -976,7 +1590,8 @@ void renderAddEditAccountScreen() {
         "Key: " + internalState.addEditAccountKeyInput,
         "Algo: < " + String(algos[internalState.addEditAccountAlgoInput]) + " >",
         "Digits: < " + String(internalState.addEditAccountDigitsInput) + " >",
-        "Period: < " + String(internalState.addEditAccountPeriodInput) + "s >"};
+        "Period: < " + String(internalState.addEditAccountPeriodInput) + "s >",
+    };
 
     displaySprite.fillSprite(UI_BG);
     drawHeader(internalState.isEditMode ? "EDIT ACCOUNT" : "ADD ACCOUNT");
@@ -1032,8 +1647,7 @@ void renderViewTotpScreen() {
     }
 
     int secondsLeft = acc.period - (now % acc.period);
-    uint16_t barColor = (code == "ERROR") ? UI_MUTED : ((secondsLeft < 5) ? UI_DANGER : UI_VALID);
-    displaySprite.fillRect(10, 105, (secondsLeft * 220) / acc.period, 4, barColor);
+    drawProgressBar((float)secondsLeft / acc.period, (code == "ERROR") ? UI_MUTED : ((secondsLeft < 5) ? UI_DANGER : UI_VALID));
 }
 
 void renderViewQrScreen() {
@@ -1249,8 +1863,8 @@ void handleTimeSetupInput(Keyboard_Class::KeysState kState, char kChar, bool isC
     }
     // Enter
     if (isChange && kState.enter && internalState.timeSetupTimeInput.length() == 14) {
-        systemPreferences.putString("TOTP_Auth/time", internalState.timeSetupTimeInput);
-        systemPreferences.putInt("TOTP_Auth/utc", internalState.timeSetupUTCOffsetInput);
+        systemPreferences.putString("TA/time", internalState.timeSetupTimeInput);
+        systemPreferences.putChar("TA/utc", internalState.timeSetupUTCOffsetInput);
 
         setenv("TZ", "UTC0", 1);
         tzset();
@@ -1334,6 +1948,149 @@ void handleSettingsMenuInput(Keyboard_Class::KeysState kState, char kChar, bool 
     }
 }
 
+void handleBrightnessSetupInput(Keyboard_Class::KeysState kState, char kChar, bool isChange) {
+    // Esc
+    if (isChange && kChar == '`') {
+        internalState.brightnessSetupBrightnessCounter = systemPreferences.getUChar("TA/brght", DEFAULT_BRIGHTNESS);
+        M5.Display.setBrightness(internalState.brightnessSetupBrightnessCounter);
+        switchExternalState(STATE_SETTINGS_MENU);
+        return;
+    }
+    // Up or Right
+    if (kChar == ';' || kChar == '/') {
+        internalState.brightnessSetupBrightnessCounter = min(255, internalState.brightnessSetupBrightnessCounter + 5);
+        M5.Display.setBrightness(internalState.brightnessSetupBrightnessCounter); // Предпросмотр
+        internalState.requiresRedraw = true;
+        return;
+    }
+    // Down or Left
+    if (kChar == '.' || kChar == ',') {
+        internalState.brightnessSetupBrightnessCounter = max(0, internalState.brightnessSetupBrightnessCounter - 5);
+        M5.Display.setBrightness(internalState.brightnessSetupBrightnessCounter); // Предпросмотр
+        internalState.requiresRedraw = true;
+        return;
+    }
+    // Enter
+    if (isChange && kState.enter) {
+        systemPreferences.putUChar("TA/brght", internalState.brightnessSetupBrightnessCounter);
+        switchExternalState(STATE_SETTINGS_MENU);
+        return;
+    }
+}
+
+void handleVolumeSetupInput(Keyboard_Class::KeysState kState, char kChar, bool isChange) {
+    // Esc
+    if (isChange && kChar == '`') {
+        internalState.volumeSetupVolumeCounter = systemPreferences.getUChar("TA/vol", DEFAULT_VOLUME);
+        M5.Speaker.setVolume(internalState.volumeSetupVolumeCounter);
+        switchExternalState(STATE_SETTINGS_MENU);
+        return;
+    }
+    // Up or Right
+    if (kChar == ';' || kChar == '/') {
+        internalState.volumeSetupVolumeCounter = min(255, internalState.volumeSetupVolumeCounter + 5);
+        M5.Speaker.setVolume(internalState.volumeSetupVolumeCounter); // Предпросмотр
+
+        // Тестовый звук
+        if (internalState.volumeSetupVolumeCounter > 0) {
+            // Восходящий звук
+            M5.Speaker.tone(880, 60);
+            delay(30);
+            M5.Speaker.tone(1200, 60);
+        }
+
+        internalState.requiresRedraw = true;
+        return;
+    }
+    // Down or Left
+    if (kChar == '.' || kChar == ',') {
+        internalState.volumeSetupVolumeCounter = max(0, internalState.volumeSetupVolumeCounter - 5);
+        M5.Speaker.setVolume(internalState.volumeSetupVolumeCounter); // Предпросмотр
+
+        // Тестовый звук
+        if (internalState.volumeSetupVolumeCounter > 0) {
+            // Нисходящий звук
+            M5.Speaker.tone(1200, 60);
+            delay(30);
+            M5.Speaker.tone(880, 60);
+        }
+
+        internalState.requiresRedraw = true;
+        return;
+    }
+    // Enter
+    if (isChange && kState.enter) {
+        systemPreferences.putUChar("TA/vol", internalState.volumeSetupVolumeCounter);
+        switchExternalState(STATE_SETTINGS_MENU);
+        return;
+    }
+}
+
+void handleSoundSetupInput(Keyboard_Class::KeysState kState, char kChar, bool isChange) {
+    // Esc
+    if (isChange && kChar == '`') {
+        internalState.soundSetupExternalState = systemPreferences.getBool("TA/snd_es", DEFAULT_SOUND_ES);
+        internalState.soundSetupKeyboard = systemPreferences.getUChar("TA/snd_kbd", DEFAULT_SOUND_KBD);
+        internalState.soundSetupTOTP = systemPreferences.getUChar("TA/snd_totp", DEFAULT_SOUND_TOTP);
+        internalState.soundSetupScreenshot = systemPreferences.getBool("TA/snd_scr", DEFAULT_SOUND_SCR);
+        switchExternalState(STATE_SETTINGS_MENU);
+        return;
+    }
+    // Tab
+    if (kState.tab) {
+        internalState.soundSetupFieldIdx = (internalState.soundSetupFieldIdx + 1) % 4;
+        internalState.requiresRedraw = true;
+        return;
+    }
+    // Up or Left
+    if (kChar == ';' || kChar == ',') {
+        switch (internalState.soundSetupFieldIdx) {
+        case 0: // Переходы
+            internalState.soundSetupExternalState = !internalState.soundSetupExternalState;
+            break;
+        case 1: // Клавиатура (назад: 0->2, 2->1, 1->0)
+            internalState.soundSetupKeyboard = (internalState.soundSetupKeyboard + 2) % 3;
+            break;
+        case 2: // TOTP (назад: 0->2, 2->1, 1->0)
+            internalState.soundSetupTOTP = (internalState.soundSetupTOTP + 2) % 3;
+            break;
+        case 3: // Скриншот
+            internalState.soundSetupScreenshot = !internalState.soundSetupScreenshot;
+            break;
+        }
+        internalState.requiresRedraw = true;
+        return;
+    }
+    // Down or Right
+    if (kChar == '.' || kChar == '/') {
+        switch (internalState.soundSetupFieldIdx) {
+        case 0: // Переходы
+            internalState.soundSetupExternalState = !internalState.soundSetupExternalState;
+            break;
+        case 1: // Клавиатура (вперед: 0->1, 1->2, 2->0)
+            internalState.soundSetupKeyboard = (internalState.soundSetupKeyboard + 1) % 3;
+            break;
+        case 2: // Клавиатура (вперед: 0->1, 1->2, 2->0)
+            internalState.soundSetupTOTP = (internalState.soundSetupTOTP + 1) % 3;
+            break;
+        case 3: // Скриншот
+            internalState.soundSetupScreenshot = !internalState.soundSetupScreenshot;
+            break;
+        }
+        internalState.requiresRedraw = true;
+        return;
+    }
+    // Enter
+    if (isChange && kState.enter) {
+        systemPreferences.putBool("TA/snd_es", internalState.soundSetupExternalState);
+        systemPreferences.putUChar("TA/snd_kbd", internalState.soundSetupKeyboard);
+        systemPreferences.putUChar("TA/snd_totp", internalState.soundSetupTOTP);
+        systemPreferences.putBool("TA/snd_scr", internalState.soundSetupScreenshot);
+        switchExternalState(STATE_SETTINGS_MENU);
+        return;
+    }
+}
+
 void handleChangePasswordInput(Keyboard_Class::KeysState kState, char kChar, bool isChange) {
     int &pos = internalState.changePasswordCursorPosition;
     int len = internalState.changePasswordInput.length();
@@ -1397,7 +2154,7 @@ void handleChangePasswordInput(Keyboard_Class::KeysState kState, char kChar, boo
     if (isChange && kState.enter) {
         performPasswordChange();
 
-        drawMessage({"PASSWORD", "CHANGED"}, UI_BG);
+        drawMessage({"PASSWORD", "CHANGED"});
         delay(600);
 
         switchExternalState(STATE_SETTINGS_MENU);
@@ -1620,11 +2377,29 @@ void handleViewTotpInput(Keyboard_Class::KeysState kState, char kChar, bool isCh
         String code = generateTOTP(acc.key, acc.algo, acc.digits, acc.period, time(NULL));
 
         drawMessage({"TYPING", "VIA USB"});
+        switch (internalState.soundSetupTOTP) {
+        case 0:
+            delay(300);
+            break;
+        case 1:
+            if (internalState.volumeSetupVolumeCounter > 0) {
+                M5.Speaker.tone(1500, 40);
+                delay(50);
+                M5.Speaker.tone(1800, 40);
+                delay(50);
+                M5.Speaker.tone(2000, 100);
+                delay(200);
+            }
+            break;
+        case 2:
+            playMorseTOTPCode(code);
+            break;
+        }
+
         for (char c : code) {
             usbKeyboard.write(c);
             delay(15);
         }
-        delay(400);
 
         internalState.requiresRedraw = true;
     }
@@ -1656,9 +2431,14 @@ void processKeyboardEvents() {
     case STATE_GUIDE:
         repeatDelay = 50;
         break;
+    case STATE_BRIGHTNESS_SETUP:
+    case STATE_VOLUME_SETUP:
+        repeatDelay = 170;
+        break;
     case STATE_LOGIN:
     case STATE_TIME_SETUP:
     case STATE_SETTINGS_MENU:
+    case STATE_SOUND_SETUP:
     case STATE_CHANGE_PASSWORD:
     case STATE_ACCOUNT_LIST:
     case STATE_ACTION_MENU:
@@ -1673,6 +2453,21 @@ void processKeyboardEvents() {
     static uint32_t lastKeyPressTime = 0;
     if (isChange || (millis() - lastKeyPressTime > repeatDelay)) {
         lastKeyPressTime = millis();
+
+        // Звуковая индикация
+        switch (internalState.soundSetupKeyboard) {
+        // Off
+        case 0:
+            break;
+        // Simple
+        case 1:
+            playKeyTone(kChar, kState);
+            break;
+        // Morse
+        case 2:
+            playMorseTone(kChar, kState);
+            break;
+        }
 
         switch (internalState.currentExternalState) {
         case STATE_SPLASH_SCREEN:
@@ -1689,6 +2484,15 @@ void processKeyboardEvents() {
             break;
         case STATE_SETTINGS_MENU:
             handleSettingsMenuInput(kState, kChar, isChange);
+            break;
+        case STATE_BRIGHTNESS_SETUP:
+            handleBrightnessSetupInput(kState, kChar, isChange);
+            break;
+        case STATE_VOLUME_SETUP:
+            handleVolumeSetupInput(kState, kChar, isChange);
+            break;
+        case STATE_SOUND_SETUP:
+            handleSoundSetupInput(kState, kChar, isChange);
             break;
         case STATE_CHANGE_PASSWORD:
             handleChangePasswordInput(kState, kChar, isChange);
@@ -1735,6 +2539,15 @@ void renderUserInterface() {
         break;
     case STATE_SETTINGS_MENU:
         renderSettingsMenuScreen();
+        break;
+    case STATE_BRIGHTNESS_SETUP:
+        renderBrightnessSetupScreen();
+        break;
+    case STATE_VOLUME_SETUP:
+        renderVolumeSetupScreen();
+        break;
+    case STATE_SOUND_SETUP:
+        renderSoundSetupScreen();
         break;
     case STATE_CHANGE_PASSWORD:
         renderChangePasswordScreen();
@@ -1836,7 +2649,16 @@ void processScreenshotEvent() {
     nextFileIndex++;
 
     drawMessage({"SCREENSHOT", "SAVED", fileName});
-    delay(1000);
+    // Звуковая индикация
+    if (internalState.volumeSetupVolumeCounter > 0 && internalState.soundSetupScreenshot) {
+        M5.Speaker.tone(1000, 60);
+        delay(40);
+        M5.Speaker.tone(900, 60);
+        delay(40);
+        M5.Speaker.tone(800, 60);
+    }
+    delay(600);
+
     // Принудительное стирание сообщения с экрана
     internalState.requiresRedraw = true;
 }
@@ -1845,6 +2667,18 @@ void setup() {
     M5Cardputer.begin(M5.config(), true);
     M5.Lcd.setRotation(1);
     displaySprite.createSprite(SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    systemPreferences.begin("by_chillyc0de");
+    internalState.timeSetupTimeInput = systemPreferences.getString("TA/time", MINIMUM_DATE);
+    internalState.timeSetupUTCOffsetInput = systemPreferences.getChar("TA/utc", DEFAULT_UTC);
+    internalState.brightnessSetupBrightnessCounter = systemPreferences.getUChar("TA/brght", DEFAULT_BRIGHTNESS);
+    internalState.volumeSetupVolumeCounter = systemPreferences.getUChar("TA/vol", DEFAULT_VOLUME);
+    M5.Display.setBrightness(internalState.brightnessSetupBrightnessCounter);
+    M5.Speaker.setVolume(internalState.volumeSetupVolumeCounter);
+    internalState.soundSetupExternalState = systemPreferences.getBool("TA/snd_es", DEFAULT_SOUND_ES);
+    internalState.soundSetupKeyboard = systemPreferences.getUChar("TA/snd_kbd", DEFAULT_SOUND_KBD);
+    internalState.soundSetupTOTP = systemPreferences.getUChar("TA/snd_totp", DEFAULT_SOUND_TOTP);
+    internalState.soundSetupScreenshot = systemPreferences.getBool("TA/snd_scr", DEFAULT_SOUND_SCR);
 
     SPI.begin(40, 39, 14, 12);
     // Проверка наличия SD
@@ -1856,8 +2690,6 @@ void setup() {
     USB.begin();
     usbKeyboard.begin();
 
-    systemPreferences.begin("by_chillyc0de");
-
     switchExternalState(STATE_SPLASH_SCREEN);
 }
 
@@ -1865,13 +2697,12 @@ void loop() {
     switch (internalState.currentExternalState) {
     case STATE_SPLASH_SCREEN:
         // Анимация на экране загрузки
-        static uint32_t lastAnimationTime = 0;
+        static uint32_t lastSplashAnimationTime = 0;
         // Частота кадров 1к/33мс = 30к/с
-        if (millis() - lastAnimationTime > 33) {
-            lastAnimationTime = millis();
+        if (millis() - lastSplashAnimationTime > 33) {
+            lastSplashAnimationTime = millis();
             internalState.requiresRedraw = true;
         }
-
         break;
     case STATE_LOGIN:
         // Особое сообщение о неправильном пароле
@@ -1888,6 +2719,15 @@ void loop() {
             internalState.requiresRedraw = true;
         }
         break; // Общий для двух
+    case STATE_VOLUME_SETUP:
+        // Анимация спектра на экране настройки звука
+        static uint32_t lastSpectrumAnimationTime = 0;
+        // Частота кадров 1к/16мс = 62.5к/с
+        if (millis() - lastSpectrumAnimationTime > 16) {
+            lastSpectrumAnimationTime = millis();
+            internalState.requiresRedraw = true;
+        }
+        break;
     case STATE_ACCOUNT_LIST:
     case STATE_VIEW_TOTP:
         // Обновление данных в реальном времени
@@ -1897,7 +2737,6 @@ void loop() {
             lastRedrawTime = currentEpochTime;
             internalState.requiresRedraw = true;
         }
-
         break;
     }
 

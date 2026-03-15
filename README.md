@@ -20,6 +20,12 @@
 
 ⚠️ Внимание: Данные шифруются алгоритмом AES-256 (PBKDF2, 10,000 итераций). Функция восстановления пароля отсутствует. Если вы забудете мастер-пароль, доступ к вашим аккаунтам будет невозможен.
 
+### ✨ Новое в версии 1.3.0
+
+- **Расширенные настройки:** Управление яркостью экрана, громкостью динамика и типом звукового отклика.
+- **Звуковая навигация:** Система уникальных тональных последовательностей для каждого экрана, позволяющая ориентироваться в интерфейсе на слух.
+- **Поддержка Морзе:** Возможность озвучки TOTP-кода (цифр) сигналами Морзе для использования устройства «вслепую».
+
 ### 🖼 Интерфейс
 
 <table align="center">
@@ -58,6 +64,12 @@
 <td align="center"><img src=".screenshots/scr_0022.bmp" width="240"></td>
 <td align="center"><img src=".screenshots/scr_0023.bmp" width="240"></td>
 <td align="center"><img src=".screenshots/scr_0024.bmp" width="240"></td>
+</tr>
+<tr>
+<td align="center"><img src=".screenshots/scr_0025.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0026.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0027.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0028.bmp" width="240"></td>
 </tr>
 </table>
 
@@ -109,6 +121,12 @@ Standalone TOTP authenticator for **M5Stack Cardputer ADV**. It provides encrypt
 
 ⚠️ Warning: Data is encrypted using AES-256 (PBKDF2, 10,000 iterations). There is no password recovery. If you forget your Master Password, your data is lost forever.
 
+### ✨ New in Version 1.3.0
+
+- **Extended Settings:** Control over screen brightness, speaker volume, and audio feedback type.
+- **Audio Navigation:** A system of unique tonal sequences for each screen, enabling eyes-free interface navigation.
+- **Morse Support:** Optional TOTP code playback (digits) using Morse code signals (configurable in Sound settings).
+
 ### 🖼 Interface
 
 <table align="center">
@@ -147,6 +165,12 @@ Standalone TOTP authenticator for **M5Stack Cardputer ADV**. It provides encrypt
 <td align="center"><img src=".screenshots/scr_0022.bmp" width="240"></td>
 <td align="center"><img src=".screenshots/scr_0023.bmp" width="240"></td>
 <td align="center"><img src=".screenshots/scr_0024.bmp" width="240"></td>
+<tr>
+<td align="center"><img src=".screenshots/scr_0025.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0026.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0027.bmp" width="240"></td>
+<td align="center"><img src=".screenshots/scr_0028.bmp" width="240"></td>
+</tr>
 </tr>
 </table>
 
