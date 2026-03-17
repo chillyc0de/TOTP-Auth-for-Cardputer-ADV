@@ -9,11 +9,9 @@
  * - QRCode: Copyright (c) 2017 Richard Moore, Project Nayuki (MIT License)
  * - AESLib: Copyright (c) 1998-2008 Brian Gladman, Mark Tillotson (Custom permissive)
  * - M5Cardputer: Copyright (c) M5Stack (SDK)
- * * See the NOTICE.txt or LICENSE file in the repository for full license texts.
+ * * See the NOTICE.txt and LICENSE file in the repository for full license texts.
  * ============================================================================
  */
-
-#include <Arduino.h>
 
 #include "USB.h"
 #include "USBHIDKeyboard.h"
@@ -25,7 +23,7 @@
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include <SD.h>
-#include <vector>
+// #include <vector>
 
 #include "mbedtls/aes.h"
 #include "mbedtls/md.h"
@@ -43,21 +41,22 @@
 
 const char *DATA_FILE_PATH = "/by_chillyc0de/TOTP_Auth/data";
 const char *SCREENSHOTS_DIR_PATH = "/by_chillyc0de/TOTP_Auth/screenshots/";
-const char *FIRMWARE_VERSION = "v1.3.0";
+const char *FIRMWARE_VERSION = "v1.3.3";
 
 const int SCREEN_WIDTH = 240;
 const int SCREEN_HEIGHT = 135;
-const int MAX_BASE32_DECODE_LENGTH = 128;
-const int MAX_ACCOUNT_NAME_LENGTH = 32;
 
-const uint16_t UI_BG = BLACK;
-const uint16_t UI_FG = WHITE;
+const uint16_t UI_BG = 0x0000;
+const uint16_t UI_FG = 0xFFFF;
 const uint16_t UI_ACCENT = 0xE204;
 const uint16_t UI_MUTED = 0x39E7;
 const uint16_t UI_DANGER = 0xF800;
 const uint16_t UI_VALID = 0x07E0;
 
-const std::vector<String> userGuideLines = {
+const int MAX_BASE32_DECODE_LENGTH = 128;
+const int MAX_ACCOUNT_NAME_LENGTH = 32;
+
+const String userGuideLines[] = {
     "============ TOTP AUTH ============",
     " Created by chillyc0de.",
     " Assisted by Google Gemini (LLM).",
@@ -115,8 +114,9 @@ const std::vector<String> userGuideLines = {
     " is not responsible for lost data",
     " or locked accounts.",
 };
+const int userGuideLinesSize = sizeof(userGuideLines) / sizeof(userGuideLines[0]);
 
-enum ExternalState {
+enum ExternalState : uint8_t {
     STATE_SPLASH_SCREEN,
     STATE_GUIDE,
     STATE_LOGIN,
@@ -151,7 +151,7 @@ struct InternalState {
     bool loginShowPassword = false;
     int loginCursorPosition = 0;
     int loginScrollOffset = 0;
-    uint32_t loginErrorClearTime = 0;
+    ulong loginErrorClearTime = 0;
 
     // Time setup
     String timeSetupTimeInput = MINIMUM_DATE;
@@ -163,16 +163,16 @@ struct InternalState {
     bool initialTimeSetupDone = false;
 
     // Brightness setup
-    uint8_t brightnessSetupBrightnessCounter = DEFAULT_BRIGHTNESS;
+    int brightnessSetupBrightnessCounter = DEFAULT_BRIGHTNESS;
 
     // Volume setup
-    uint8_t volumeSetupVolumeCounter = DEFAULT_VOLUME;
+    int volumeSetupVolumeCounter = DEFAULT_VOLUME;
 
     // Sound setup
-    uint8_t soundSetupFieldIdx = 0;
+    int soundSetupFieldIdx = 0;
     bool soundSetupExternalState = DEFAULT_SOUND_ES;
-    uint8_t soundSetupKeyboard = DEFAULT_SOUND_KBD;
-    uint8_t soundSetupTOTP = DEFAULT_SOUND_TOTP;
+    int soundSetupKeyboard = DEFAULT_SOUND_KBD;
+    int soundSetupTOTP = DEFAULT_SOUND_TOTP;
     bool soundSetupScreenshot = DEFAULT_SOUND_SCR;
 
     // Change password
@@ -191,27 +191,20 @@ struct InternalState {
 
     // Add / Edit account
     bool isEditMode = false;
-    uint8_t addEditAccountFieldIdx = 0;
+    int addEditAccountFieldIdx = 0;
     String addEditAccountNameInput = "";
     String addEditAccountKeyInput = "";
-    uint8_t addEditAccountAlgoInput = 0;
-    uint8_t addEditAccountDigitsInput = 6;
-    uint8_t addEditAccountPeriodInput = 30;
-};
-
-struct MessageLine {
-    String text;
-    const lgfx::IFont *fontPtr;
-    MessageLine(const char *t, const lgfx::IFont *f = &fonts::Font4) : text(t), fontPtr(f) {}
-    MessageLine(String t, const lgfx::IFont *f = &fonts::Font4) : text(t), fontPtr(f) {}
+    int addEditAccountAlgoInput = 0;
+    int addEditAccountDigitsInput = 6;
+    int addEditAccountPeriodInput = 30;
 };
 
 struct Account {
     String name;
     String key;
-    uint8_t algo;
-    uint8_t digits;
-    uint8_t period;
+    int algo;
+    int digits;
+    int period;
 };
 std::vector<Account> savedAccounts;
 
@@ -221,7 +214,7 @@ Preferences systemPreferences;
 InternalState internalState;
 
 // --- ЗВУКОВАЯ ИНДИКАЦИЯ ---
-void playMorse(const char *code, int freq, int dot, int dash, int pause) {
+void playMorse(const char *code, float freq, uint32_t dot, uint32_t dash, uint32_t pause) {
     while (*code) {
         if (*code == '.') M5.Speaker.tone(freq, dot);
         else if (*code == '-') M5.Speaker.tone(freq, dash);
@@ -233,16 +226,16 @@ void playMorse(const char *code, int freq, int dot, int dash, int pause) {
 void playMorseTone(char kChar, Keyboard_Class::KeysState kState = {}) {
     if (internalState.volumeSetupVolumeCounter == 0) return;
 
-    int freq = 1000;
-    const int dot = 50;
-    const int dash = 150;
-    const int pause = 60;
+    float frequency = 1000;
+    const uint32_t dot_duration = 50;
+    const uint32_t dash_duration = 150;
+    const uint32_t pause_duration = 60;
 
     const char *morse = nullptr;
 
     // Комбинации Fn
     if (kState.fn) {
-        freq = 1400;
+        frequency = 1400;
 
         if (kChar == ';') morse = "..-";             // U (UP)
         else if (kChar == '.') morse = "-..";        // D (DOWN)
@@ -252,35 +245,35 @@ void playMorseTone(char kChar, Keyboard_Class::KeysState kState = {}) {
         else if (kState.del) morse = "-.. . .-..";   // DEL
 
         if (morse) {
-            playMorse(morse, freq, dot, dash, pause);
+            playMorse(morse, frequency, dot_duration, dash_duration, pause_duration);
             return;
         }
     }
 
     // Клавиши состояния
     if (kState.enter) {
-        freq = 1200;
-        playMorse(".", freq, dot, dash, pause);  // E
-        playMorse("-.", freq, dot, dash, pause); // N
+        frequency = 1200;
+        playMorse(".", frequency, dot_duration, dash_duration, pause_duration);  // E
+        playMorse("-.", frequency, dot_duration, dash_duration, pause_duration); // N
         return;
     }
     if (kState.tab) {
-        freq = 1200;
-        playMorse("-", freq, dot, dash, pause);    // T
-        playMorse(".-", freq, dot, dash, pause);   // A
-        playMorse("-...", freq, dot, dash, pause); // B
+        frequency = 1200;
+        playMorse("-", frequency, dot_duration, dash_duration, pause_duration);    // T
+        playMorse(".-", frequency, dot_duration, dash_duration, pause_duration);   // A
+        playMorse("-...", frequency, dot_duration, dash_duration, pause_duration); // B
         return;
     }
     if (kState.del && !kState.fn) {
-        freq = 1200;
-        playMorse("-...", freq, dot, dash, pause); // B
+        frequency = 1200;
+        playMorse("-...", frequency, dot_duration, dash_duration, pause_duration); // B
         return;
     }
     // Пробел
     if (kChar == ' ') {
-        freq = 900;
-        playMorse("...", freq, dot, dash, pause);  // S
-        playMorse(".--.", freq, dot, dash, pause); // P
+        frequency = 900;
+        playMorse("...", frequency, dot_duration, dash_duration, pause_duration);  // S
+        playMorse(".--.", frequency, dot_duration, dash_duration, pause_duration); // P
         return;
     }
 
@@ -452,13 +445,13 @@ void playMorseTone(char kChar, Keyboard_Class::KeysState kState = {}) {
         break;
     }
 
-    if (morse) playMorse(morse, freq, dot, dash, pause);
-    else M5.Speaker.tone(freq, 25);
+    if (morse) playMorse(morse, frequency, dot_duration, dash_duration, pause_duration);
+    else M5.Speaker.tone(frequency, 25);
 }
 
-void playMorseTOTPCode(String totpCode) {
+void playMorseTOTPCode(const String &totpCode) {
     if (internalState.volumeSetupVolumeCounter == 0) return;
-    for (uint i = 0; i < totpCode.length(); i++) {
+    for (int i = 0; i < totpCode.length(); i++) {
         playMorseTone(totpCode[i]);
         delay(100);
     }
@@ -467,29 +460,29 @@ void playMorseTOTPCode(String totpCode) {
 void playKeyTone(char kChar, Keyboard_Class::KeysState kState = {}) {
     if (internalState.volumeSetupVolumeCounter == 0) return;
 
-    int freq = 1000;
-    const int dur = 40;
+    float frequency = 1000;
+    const uint32_t duration = 40;
 
     // --- Комбинации Fn ---
     if (kState.fn) {
-        if (kChar == ';') freq = 1400;      // UP
-        else if (kChar == '.') freq = 1350; // DOWN
-        else if (kChar == ',') freq = 1300; // LEFT
-        else if (kChar == '/') freq = 1250; // RIGHT
-        else if (kChar == '`') freq = 1500; // ESCAPE
-        else if (kState.del) freq = 1200;   // DELETE
+        if (kChar == ';') frequency = 1400;      // UP
+        else if (kChar == '.') frequency = 1350; // DOWN
+        else if (kChar == ',') frequency = 1300; // LEFT
+        else if (kChar == '/') frequency = 1250; // RIGHT
+        else if (kChar == '`') frequency = 1500; // ESCAPE
+        else if (kState.del) frequency = 1200;   // DELETE
 
-        M5.Speaker.tone(freq, dur);
+        M5.Speaker.tone(frequency, duration);
         return;
     }
 
     // Клавиши состояния
-    if (kState.enter) freq = 1200;
-    else if (kState.tab) freq = 1100;
-    else if (kState.del) freq = 1000;
+    if (kState.enter) frequency = 1200;
+    else if (kState.tab) frequency = 1100;
+    else if (kState.del) frequency = 1000;
 
     // Пробел
-    else if (kChar == ' ') freq = 900;
+    else if (kChar == ' ') frequency = 900;
 
     // Символы
     else {
@@ -497,71 +490,71 @@ void playKeyTone(char kChar, Keyboard_Class::KeysState kState = {}) {
         case 'a':
         case 'b':
         case 'c':
-            freq = 1000;
+            frequency = 1000;
             break;
         case 'd':
         case 'e':
         case 'f':
-            freq = 1050;
+            frequency = 1050;
             break;
         case 'g':
         case 'h':
         case 'i':
-            freq = 1100;
+            frequency = 1100;
             break;
         case 'j':
         case 'k':
         case 'l':
-            freq = 1150;
+            frequency = 1150;
             break;
         case 'm':
         case 'n':
         case 'o':
-            freq = 1200;
+            frequency = 1200;
             break;
         case 'p':
         case 'q':
         case 'r':
         case 's':
-            freq = 1250;
+            frequency = 1250;
             break;
         case 't':
         case 'u':
         case 'v':
-            freq = 1300;
+            frequency = 1300;
             break;
         case 'w':
         case 'x':
         case 'y':
         case 'z':
-            freq = 1350;
+            frequency = 1350;
             break;
         case '0':
         case '1':
         case '2':
-            freq = 900;
+            frequency = 900;
             break;
         case '3':
         case '4':
         case '5':
-            freq = 950;
+            frequency = 950;
             break;
         case '6':
         case '7':
         case '8':
-            freq = 1000;
+            frequency = 1000;
             break;
         case '9':
-            freq = 1050;
+            frequency = 1050;
             break;
             // Спецсимволы
         default:
-            freq = 950;
+            frequency = 950;
             break;
         }
     }
 
-    M5.Speaker.tone(freq, dur);
+    M5.Speaker.tone(frequency, duration);
 }
 
 void playExternalStateTone(ExternalState externalState) {
@@ -664,7 +657,7 @@ void switchExternalState(ExternalState externalState) {
         time_t nowTime = time(NULL);
         if (nowTime < MINIMUM_UNIX_TS) {
             internalState.timeSetupTimeInput = systemPreferences.getString("TA/time", MINIMUM_DATE);
-            internalState.timeSetupUTCOffsetInput = systemPreferences.getChar("TA/utc", DEFAULT_UTC);
+            internalState.timeSetupUTCOffsetInput = systemPreferences.getInt("TA/utc", DEFAULT_UTC);
         } else {
             time_t localTime = nowTime + (internalState.timeSetupUTCOffsetInput * 3600);
             struct tm *t = gmtime(&localTime);
@@ -684,7 +677,7 @@ struct MenuOption {
     std::function<void()> action;
 };
 
-const std::vector<MenuOption> settingsMenuOptions = {
+const MenuOption settingsMenuOptions[] = {
     {
         "[Enter]: Return to accounts",
         []() {
@@ -722,8 +715,9 @@ const std::vector<MenuOption> settingsMenuOptions = {
         },
     },
 };
+const int settingsMenuOptionsSize = sizeof(settingsMenuOptions) / sizeof(settingsMenuOptions[0]);
 
-const std::vector<MenuOption> actionMenuOptions = {
+const MenuOption actionMenuOptions[] = {
     {
         "View TOTP Code",
         []() {
@@ -739,7 +733,7 @@ const std::vector<MenuOption> actionMenuOptions = {
     {
         "Edit Account",
         []() {
-            auto acc = savedAccounts[internalState.accountListSelectedIndex - 1];
+            Account acc = savedAccounts[internalState.accountListSelectedIndex - 1];
             internalState.addEditAccountNameInput = acc.name;
             internalState.addEditAccountKeyInput = acc.key;
             internalState.addEditAccountAlgoInput = acc.algo;
@@ -757,6 +751,7 @@ const std::vector<MenuOption> actionMenuOptions = {
         },
     },
 };
+const int actionMenuOptionsSize = sizeof(actionMenuOptions) / sizeof(actionMenuOptions[0]);
 
 // --- КРИПТОГРАФИЧЕСКИЕ ФУНКЦИИ ---
 void deriveKey(const String &password, const uint8_t *salt, uint8_t *key) {
@@ -815,9 +810,9 @@ String generateTOTP(const String &base32Secret, int algo, int digits, int period
     uint32_t binary = ((hash[offset] & 0x7F) << 24) | ((hash[offset + 1] & 0xFF) << 16) | ((hash[offset + 2] & 0xFF) << 8) | (hash[offset + 3] & 0xFF);
 
     uint32_t otp = binary % (digits == 8 ? 100000000 : 1000000);
-    char format[10], result[10];
-    sprintf(format, "%%0%dd", digits);
-    sprintf(result, format, otp);
+    char format[10], result[12]; // Взял result с запасом
+    snprintf(format, sizeof(format), "%%0%dd", digits);
+    snprintf(result, sizeof(result), format, otp);
     return String(result);
 }
 
@@ -842,7 +837,7 @@ String urlEncode(const String &str) {
     return encodedString;
 }
 
-bool isNextDateTimeDigitValid(String currentString, char nextDigit) {
+bool isNextDateTimeDigitValid(const String &currentString, char nextDigit) {
     String potentialString = currentString + nextDigit;
     int length = potentialString.length();
     int position = currentString.length();
@@ -943,7 +938,7 @@ bool parseVaultJSON(const std::vector<uint8_t> &decBuf) {
 String serializeVaultJSON() {
     JsonDocument doc;
     JsonArray arr = doc.to<JsonArray>();
-    for (const auto &acc : savedAccounts) {
+    for (const Account &acc : savedAccounts) {
         JsonObject obj = arr.add<JsonObject>();
         obj["n"] = acc.name;
         obj["s"] = acc.key;
@@ -1059,7 +1054,7 @@ void performPasswordChange() {
 }
 
 // --- ОТРИСОВКА ВСПОМОГАТЕЛЬНЫХ ЭЛЕМЕНТОВ ---
-void drawHeader(String title, String rightText = "") {
+void drawHeader(const String &title, const String &rightText = "") {
     displaySprite.fillRect(0, 0, SCREEN_WIDTH, 24, UI_ACCENT);
     displaySprite.setTextColor(UI_FG);
 
@@ -1074,7 +1069,7 @@ void drawHeader(String title, String rightText = "") {
     }
 }
 
-void drawFooter(std::vector<String> lines) {
+void drawFooter(const std::vector<String> &lines) {
     int numLines = lines.size();
 
     int lineHeight = 12;
@@ -1121,7 +1116,13 @@ void drawProgressBar(float progress, uint16_t fgColor = UI_ACCENT, uint16_t bgCo
     if (fillW > 0) displaySprite.fillRect(x + 2, y + 2, fillW, h - 4, fgColor);
 }
 
-void drawMessage(std::vector<MessageLine> lines, uint16_t fgColor = UI_FG, uint16_t bgColor = UI_BG) {
+struct MessageLine {
+    String text;
+    const lgfx::IFont *fontPtr;
+    MessageLine(const char *t, const lgfx::IFont *f = &fonts::Font4) : text(t), fontPtr(f) {}
+    MessageLine(String t, const lgfx::IFont *f = &fonts::Font4) : text(t), fontPtr(f) {}
+};
+void drawMessage(const std::vector<MessageLine> &lines, uint16_t fgColor = UI_FG, uint16_t bgColor = UI_BG) {
     int numLines = std::min((int)lines.size(), 3);
     int lineHeight = 30; // Расстояние между центрами строк
 
@@ -1143,19 +1144,45 @@ void renderSplashScreen() {
     displaySprite.fillSprite(UI_BG);
     drawFooter({"   [Any]: Guide      [Enter]: Login"});
 
-    // Настройки заголовка
-    int titleX = SCREEN_WIDTH / 2;
-    int titleY = 30;
-    displaySprite.setTextColor(UI_FG);
-    displaySprite.setTextDatum(top_center);
-    displaySprite.drawString("TOTP AUTH", titleX, titleY, &fonts::Font4);
+    int iconSize = 30;
+    int gap = 10;
+    int textW = 120;
+    int padding = 10;
 
-    // Параметры рамки под Font4
-    int rectW = 160;
-    int rectH = 35;
-    int radius = 8;
-    displaySprite.drawRoundRect(titleX - (rectW / 2), titleY - 7, rectW, rectH, radius, 0xF800);
-    displaySprite.drawRoundRect(titleX - (rectW / 2) - 1, titleY - 8, rectW + 2, rectH + 2, radius, 0xF800);
+    // Вычисляем общую ширину рамки
+    int rectW = iconSize + gap + textW + (padding * 2);
+    int rectH = 40;
+    int rectX = (SCREEN_WIDTH - rectW) / 2;
+    int rectY = 25;
+
+    // Рисуем двойную рамку
+    displaySprite.drawRoundRect(rectX, rectY, rectW, rectH, 8, 0xF800);
+    displaySprite.drawRoundRect(rectX - 1, rectY - 1, rectW + 2, rectH + 2, 8, 0xF800);
+
+    int ix = rectX + padding;
+    int iy = rectY + (rectH - iconSize) / 2;
+
+    // Фон иконки
+    displaySprite.drawRect(ix, iy, iconSize, iconSize, UI_FG);
+    displaySprite.fillRect(ix + 1, iy + 1, iconSize - 2, iconSize - 2, 0x0210); // Темно-синий
+
+    // Анимация иконки
+    ulong animTime = millis();
+    // Генерируем "случайную" цифру на основе времени (меняется каждые 100мс)
+    int digit = (animTime / 100) % 10;
+
+    displaySprite.setTextColor(0x07E0); // Зеленый цвет для цифр
+    displaySprite.setTextDatum(middle_center);
+    displaySprite.drawString(String(digit), ix + (iconSize / 2), iy + (iconSize / 2) + 2, &fonts::Font4);
+
+    // Эффект "сканирующей линии" поверх цифры
+    int scanLineY = (animTime / 5) % (iconSize - 4);
+    displaySprite.fillRect(ix + 2, iy + 2 + scanLineY, iconSize - 4, 1, 0x0410);
+
+    // Текст заголовка
+    displaySprite.setTextColor(UI_FG);
+    displaySprite.setTextDatum(middle_left);
+    displaySprite.drawString("TOTP Auth", ix + iconSize + gap, rectY + (rectH / 2) + 2, &fonts::Font4);
 
     // Координаты подписей
     int margin = 12;
@@ -1187,7 +1214,7 @@ void renderSplashScreen() {
 
     // Пиксельный огонь (8 частиц)
     for (int i = 0; i < 8; i++) {
-        uint32_t t = millis() + (i * 200); // Тайминг
+        ulong t = millis() + (i * 200); // Тайминг
         float duration = 600.0 + (i * 100.0);
         float anim = (float)(t % (int)duration) / duration;
 
@@ -1242,7 +1269,7 @@ void renderSplashScreen() {
 void renderGuideScreen() {
     displaySprite.fillSprite(UI_BG);
     drawHeader("GUIDE");
-    drawScrollbar(internalState.guideScrollY / 18, (SCREEN_HEIGHT - 44) / 18, userGuideLines.size(), 26, SCREEN_HEIGHT - 44);
+    drawScrollbar(internalState.guideScrollY / 18, (SCREEN_HEIGHT - 44) / 18, userGuideLinesSize, 26, SCREEN_HEIGHT - 44);
     drawFooter({"   [Esc]: Back      [Arrows]: Scroll"});
 
     displaySprite.setClipRect(0, 26, SCREEN_WIDTH - 5, SCREEN_HEIGHT - 44);
@@ -1251,7 +1278,7 @@ void renderGuideScreen() {
     displaySprite.setTextDatum(top_left);
     displaySprite.setFont(&fonts::Font2);
 
-    for (size_t i = 0; i < userGuideLines.size(); i++) {
+    for (int i = 0; i < userGuideLinesSize; i++) {
         int yPos = 30 + (i * 18) - internalState.guideScrollY;
         if (yPos > -18 && yPos < SCREEN_HEIGHT) displaySprite.drawString(userGuideLines[i], 5 - internalState.guideScrollX, yPos);
     }
@@ -1364,7 +1391,7 @@ void renderTimeSetupScreen() {
 void renderSettingsMenuScreen() {
     displaySprite.fillSprite(UI_BG);
     drawHeader("SETTINGS");
-    drawScrollbar(internalState.settingsMenuScrollOffset, 4, settingsMenuOptions.size(), 32, 4 * 20);
+    drawScrollbar(internalState.settingsMenuScrollOffset, 4, settingsMenuOptionsSize, 32, 4 * 20);
     drawFooter({"   [Esc]: Guide      [Enter]: Select"});
 
     displaySprite.setTextColor(UI_FG);
@@ -1372,7 +1399,7 @@ void renderSettingsMenuScreen() {
 
     for (int i = 0; i < 4; i++) {
         int itemIdx = internalState.settingsMenuScrollOffset + i;
-        if (itemIdx >= settingsMenuOptions.size()) break; // Если пунктов меньше 4, выходим раньше
+        if (itemIdx >= settingsMenuOptionsSize) break; // Если пунктов меньше 4, выходим раньше
 
         bool isSel = (itemIdx == internalState.settingsMenuSelectedIndex);
         int yPos = 32 + (i * 20); // i от 0 до 3 (позиция на экране)
@@ -1609,7 +1636,7 @@ void renderAddEditAccountScreen() {
 void renderActionMenuScreen() {
     displaySprite.fillSprite(UI_BG);
     drawHeader(savedAccounts[internalState.accountListSelectedIndex - 1].name);
-    drawScrollbar(internalState.actionMenuScrollOffset, 4, actionMenuOptions.size(), 32, 4 * 20);
+    drawScrollbar(internalState.actionMenuScrollOffset, 4, actionMenuOptionsSize, 32, 4 * 20);
     drawFooter({"   [Esc]: Back       [Enter]: Select"});
 
     displaySprite.setTextColor(UI_FG);
@@ -1617,7 +1644,7 @@ void renderActionMenuScreen() {
 
     for (int i = 0; i < 4; i++) {
         int itemIdx = internalState.actionMenuScrollOffset + i;
-        if (itemIdx >= actionMenuOptions.size()) break; // Если пунктов меньше 4, выходим раньше
+        if (itemIdx >= actionMenuOptionsSize) break; // Если пунктов меньше 4, выходим раньше
 
         bool isSel = (itemIdx == internalState.actionMenuSelectedIndex);
         int yPos = 32 + (i * 20); // i от 0 до 3 (позиция на экране)
@@ -1629,7 +1656,7 @@ void renderActionMenuScreen() {
 
 void renderViewTotpScreen() {
     time_t now = time(NULL);
-    auto acc = savedAccounts[internalState.accountListSelectedIndex - 1];
+    Account acc = savedAccounts[internalState.accountListSelectedIndex - 1];
     String code = generateTOTP(acc.key, acc.algo, acc.digits, acc.period, now);
 
     displaySprite.fillSprite(UI_BG);
@@ -1651,7 +1678,7 @@ void renderViewTotpScreen() {
 }
 
 void renderViewQrScreen() {
-    auto acc = savedAccounts[internalState.accountListSelectedIndex - 1];
+    Account acc = savedAccounts[internalState.accountListSelectedIndex - 1];
     const char *algos[] = {"SHA1", "SHA256", "SHA512"};
     String uri = "otpauth://totp/" + urlEncode(acc.name) + "?secret=" + acc.key + "&algorithm=" + algos[acc.algo] + "&digits=" + String(acc.digits) + "&period=" + String(acc.period);
 
@@ -1722,11 +1749,11 @@ void handleGuideInput(Keyboard_Class::KeysState kState, char kChar, bool isChang
 
     // Расчет вертикального максимума
     int fontHeight = 18; // Высота символа Font0
-    int maxScrollY = max(0, (int)(userGuideLines.size() * fontHeight) - 85);
+    int maxScrollY = max(0, userGuideLinesSize * fontHeight - 85);
 
     // Расчет горизонтального максимума
     size_t maxChars = 0;
-    for (const auto &line : userGuideLines)
+    for (const String &line : userGuideLines)
         if (line.length() > maxChars) maxChars = line.length();
 
     int fontWidth = 10; // Ширина символа Font0
@@ -1864,7 +1891,7 @@ void handleTimeSetupInput(Keyboard_Class::KeysState kState, char kChar, bool isC
     // Enter
     if (isChange && kState.enter && internalState.timeSetupTimeInput.length() == 14) {
         systemPreferences.putString("TA/time", internalState.timeSetupTimeInput);
-        systemPreferences.putChar("TA/utc", internalState.timeSetupUTCOffsetInput);
+        systemPreferences.putInt("TA/utc", internalState.timeSetupUTCOffsetInput);
 
         setenv("TZ", "UTC0", 1);
         tzset();
@@ -1906,7 +1933,7 @@ void handleSettingsMenuInput(Keyboard_Class::KeysState kState, char kChar, bool 
             internalState.settingsMenuSelectedIndex--;
         } else {
             // Прыжок с первого на последний
-            internalState.settingsMenuSelectedIndex = settingsMenuOptions.size() - 1;
+            internalState.settingsMenuSelectedIndex = settingsMenuOptionsSize - 1;
         }
 
         // Корректировка скролла в видимой области (4 пункта)
@@ -1915,7 +1942,7 @@ void handleSettingsMenuInput(Keyboard_Class::KeysState kState, char kChar, bool 
             internalState.settingsMenuScrollOffset = internalState.settingsMenuSelectedIndex;
         } else if (internalState.settingsMenuSelectedIndex >= internalState.settingsMenuScrollOffset + 4) {
             // Если перепрыгнули в самый конец, показываем последние 4 элемента
-            int newOffset = (int)settingsMenuOptions.size() - 4;
+            int newOffset = settingsMenuOptionsSize - 4;
             internalState.settingsMenuScrollOffset = (newOffset > 0) ? newOffset : 0;
         }
         internalState.requiresRedraw = true;
@@ -1923,7 +1950,7 @@ void handleSettingsMenuInput(Keyboard_Class::KeysState kState, char kChar, bool 
     }
     // Down or Right
     if (kChar == '.' || kChar == '/') {
-        if (internalState.settingsMenuSelectedIndex < (int)settingsMenuOptions.size() - 1) {
+        if (internalState.settingsMenuSelectedIndex < settingsMenuOptionsSize - 1) {
             internalState.settingsMenuSelectedIndex++;
         } else {
             // Прыжок с последнего на первый
@@ -1951,7 +1978,7 @@ void handleSettingsMenuInput(Keyboard_Class::KeysState kState, char kChar, bool 
 void handleBrightnessSetupInput(Keyboard_Class::KeysState kState, char kChar, bool isChange) {
     // Esc
     if (isChange && kChar == '`') {
-        internalState.brightnessSetupBrightnessCounter = systemPreferences.getUChar("TA/brght", DEFAULT_BRIGHTNESS);
+        internalState.brightnessSetupBrightnessCounter = systemPreferences.getInt("TA/brght", DEFAULT_BRIGHTNESS);
         M5.Display.setBrightness(internalState.brightnessSetupBrightnessCounter);
         switchExternalState(STATE_SETTINGS_MENU);
         return;
@@ -1972,7 +1999,7 @@ void handleBrightnessSetupInput(Keyboard_Class::KeysState kState, char kChar, bo
     }
     // Enter
     if (isChange && kState.enter) {
-        systemPreferences.putUChar("TA/brght", internalState.brightnessSetupBrightnessCounter);
+        systemPreferences.putInt("TA/brght", internalState.brightnessSetupBrightnessCounter);
         switchExternalState(STATE_SETTINGS_MENU);
         return;
     }
@@ -1981,7 +2008,7 @@ void handleBrightnessSetupInput(Keyboard_Class::KeysState kState, char kChar, bo
 void handleVolumeSetupInput(Keyboard_Class::KeysState kState, char kChar, bool isChange) {
     // Esc
     if (isChange && kChar == '`') {
-        internalState.volumeSetupVolumeCounter = systemPreferences.getUChar("TA/vol", DEFAULT_VOLUME);
+        internalState.volumeSetupVolumeCounter = systemPreferences.getInt("TA/vol", DEFAULT_VOLUME);
         M5.Speaker.setVolume(internalState.volumeSetupVolumeCounter);
         switchExternalState(STATE_SETTINGS_MENU);
         return;
@@ -2020,7 +2047,7 @@ void handleVolumeSetupInput(Keyboard_Class::KeysState kState, char kChar, bool i
     }
     // Enter
     if (isChange && kState.enter) {
-        systemPreferences.putUChar("TA/vol", internalState.volumeSetupVolumeCounter);
+        systemPreferences.putInt("TA/vol", internalState.volumeSetupVolumeCounter);
         switchExternalState(STATE_SETTINGS_MENU);
         return;
     }
@@ -2030,8 +2057,8 @@ void handleSoundSetupInput(Keyboard_Class::KeysState kState, char kChar, bool is
     // Esc
     if (isChange && kChar == '`') {
         internalState.soundSetupExternalState = systemPreferences.getBool("TA/snd_es", DEFAULT_SOUND_ES);
-        internalState.soundSetupKeyboard = systemPreferences.getUChar("TA/snd_kbd", DEFAULT_SOUND_KBD);
-        internalState.soundSetupTOTP = systemPreferences.getUChar("TA/snd_totp", DEFAULT_SOUND_TOTP);
+        internalState.soundSetupKeyboard = systemPreferences.getInt("TA/snd_kbd", DEFAULT_SOUND_KBD);
+        internalState.soundSetupTOTP = systemPreferences.getInt("TA/snd_totp", DEFAULT_SOUND_TOTP);
         internalState.soundSetupScreenshot = systemPreferences.getBool("TA/snd_scr", DEFAULT_SOUND_SCR);
         switchExternalState(STATE_SETTINGS_MENU);
         return;
@@ -2083,8 +2110,8 @@ void handleSoundSetupInput(Keyboard_Class::KeysState kState, char kChar, bool is
     // Enter
     if (isChange && kState.enter) {
         systemPreferences.putBool("TA/snd_es", internalState.soundSetupExternalState);
-        systemPreferences.putUChar("TA/snd_kbd", internalState.soundSetupKeyboard);
-        systemPreferences.putUChar("TA/snd_totp", internalState.soundSetupTOTP);
+        systemPreferences.putInt("TA/snd_kbd", internalState.soundSetupKeyboard);
+        systemPreferences.putInt("TA/snd_totp", internalState.soundSetupTOTP);
         systemPreferences.putBool("TA/snd_scr", internalState.soundSetupScreenshot);
         switchExternalState(STATE_SETTINGS_MENU);
         return;
@@ -2211,7 +2238,7 @@ void handleActionMenuInput(Keyboard_Class::KeysState kState, char kChar, bool is
             internalState.actionMenuSelectedIndex--;
         } else {
             // Прыжок с первого на последний
-            internalState.actionMenuSelectedIndex = actionMenuOptions.size() - 1;
+            internalState.actionMenuSelectedIndex = actionMenuOptionsSize - 1;
         }
 
         // Корректировка скролла в видимой области (4 пункта)
@@ -2220,7 +2247,7 @@ void handleActionMenuInput(Keyboard_Class::KeysState kState, char kChar, bool is
             internalState.actionMenuScrollOffset = internalState.actionMenuSelectedIndex;
         } else if (internalState.actionMenuSelectedIndex >= internalState.actionMenuScrollOffset + 4) {
             // Если перепрыгнули в самый конец, показываем последние 4 элемента
-            int newOffset = (int)actionMenuOptions.size() - 4;
+            int newOffset = actionMenuOptionsSize - 4;
             internalState.actionMenuScrollOffset = (newOffset > 0) ? newOffset : 0;
         }
         internalState.requiresRedraw = true;
@@ -2228,7 +2255,7 @@ void handleActionMenuInput(Keyboard_Class::KeysState kState, char kChar, bool is
     }
     // Down or Right
     if (kChar == '.' || kChar == '/') {
-        if (internalState.actionMenuSelectedIndex < (int)actionMenuOptions.size() - 1) {
+        if (internalState.actionMenuSelectedIndex < actionMenuOptionsSize - 1) {
             internalState.actionMenuSelectedIndex++;
         } else {
             // Прыжок с последнего на первый
@@ -2373,7 +2400,7 @@ void handleViewTotpInput(Keyboard_Class::KeysState kState, char kChar, bool isCh
     }
     // Enter
     if (isChange && kState.enter) {
-        auto acc = savedAccounts[internalState.accountListSelectedIndex - 1];
+        Account acc = savedAccounts[internalState.accountListSelectedIndex - 1];
         String code = generateTOTP(acc.key, acc.algo, acc.digits, acc.period, time(NULL));
 
         drawMessage({"TYPING", "VIA USB"});
@@ -2420,7 +2447,7 @@ void processKeyboardEvents() {
     if (!isPressed) return; // Нет нажатия, нечего обрабатывать
 
     // Модификатор
-    auto kState = M5Cardputer.Keyboard.keysState();
+    Keyboard_Class::KeysState kState = M5Cardputer.Keyboard.keysState();
     // Символ
     char kChar = kState.word.size() > 0 ? kState.word[0] : 0;
 
@@ -2450,7 +2477,7 @@ void processKeyboardEvents() {
         break;
     }
 
-    static uint32_t lastKeyPressTime = 0;
+    static ulong lastKeyPressTime = 0;
     if (isChange || (millis() - lastKeyPressTime > repeatDelay)) {
         lastKeyPressTime = millis();
 
@@ -2580,16 +2607,16 @@ void renderUserInterface() {
 void processScreenshotEvent() {
     if (!M5Cardputer.BtnA.isPressed()) return;
 
-    static uint32_t lastScreenshotTime = 0;
+    static ulong lastScreenshotTime = 0;
     if (millis() - lastScreenshotTime < 1000) return;
     lastScreenshotTime = millis();
 
     ensureDirectoryExists(SCREENSHOTS_DIR_PATH);
 
     // Инициализация индекса (поиск максимума) при первом вызове
-    static uint16_t nextFileIndex = 0;
+    static int nextFileIndex = 0;
     if (nextFileIndex == 0) {
-        uint16_t maxIndex = 0;
+        int maxIndex = 0;
         String dirPath = SCREENSHOTS_DIR_PATH;
         if (dirPath.endsWith("/")) dirPath.remove(dirPath.length() - 1);
 
@@ -2605,7 +2632,7 @@ void processScreenshotEvent() {
                 if (found) {
                     // Смещаем указатель на длину строки "scr_"
                     // И берем число сразу после "scr_"
-                    uint16_t idx = atoi(found + 4);
+                    int idx = atoi(found + 4);
                     if (idx > maxIndex) maxIndex = idx;
                 }
                 scrFile.close();
@@ -2626,16 +2653,69 @@ void processScreenshotEvent() {
     File file = SD.open(filePath, FILE_WRITE);
     if (!file) return;
 
-    uint32_t fileSize = 54 + (240 * 135 * 3);
+    uint32_t fileSize = 54 + (SCREEN_WIDTH * SCREEN_HEIGHT * 3);
     uint8_t header[54] = {
-        'B', 'M', (uint8_t)(fileSize), (uint8_t)(fileSize >> 8), (uint8_t)(fileSize >> 16), (uint8_t)(fileSize >> 24),
-        0, 0, 0, 0, 54, 0, 0, 0, 40, 0, 0, 0, 240, 0, 0, 0, 121, 255, 255, 255, 1, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        'B',
+        'M',
+        (uint8_t)(fileSize),
+        (uint8_t)(fileSize >> 8),
+        (uint8_t)(fileSize >> 16),
+        (uint8_t)(fileSize >> 24),
+        0,
+        0,
+        0,
+        0,
+        54,
+        0,
+        0,
+        0,
+        40,
+        0,
+        0,
+        0,
+        240,
+        0,
+        0,
+        0,
+        121,
+        255,
+        255,
+        255,
+        1,
+        0,
+        24,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    };
     file.write(header, 54);
 
-    uint8_t lineBuffer[240 * 3];
-    for (int y = 0; y < 135; y++) {
+    uint8_t lineBuffer[SCREEN_WIDTH * 3];
+    for (int y = 0; y < SCREEN_HEIGHT; y++) {
         int pos = 0;
-        for (int x = 0; x < 240; x++) {
+        for (int x = 0; x < SCREEN_WIDTH; x++) {
             uint16_t color = displaySprite.readPixel(x, y);
             lineBuffer[pos++] = (color & 0x001F) << 3; // B
             lineBuffer[pos++] = (color & 0x07E0) >> 3; // G
@@ -2670,19 +2750,19 @@ void setup() {
 
     systemPreferences.begin("by_chillyc0de");
     internalState.timeSetupTimeInput = systemPreferences.getString("TA/time", MINIMUM_DATE);
-    internalState.timeSetupUTCOffsetInput = systemPreferences.getChar("TA/utc", DEFAULT_UTC);
-    internalState.brightnessSetupBrightnessCounter = systemPreferences.getUChar("TA/brght", DEFAULT_BRIGHTNESS);
-    internalState.volumeSetupVolumeCounter = systemPreferences.getUChar("TA/vol", DEFAULT_VOLUME);
+    internalState.timeSetupUTCOffsetInput = systemPreferences.getInt("TA/utc", DEFAULT_UTC);
+    internalState.brightnessSetupBrightnessCounter = systemPreferences.getInt("TA/brght", DEFAULT_BRIGHTNESS);
+    internalState.volumeSetupVolumeCounter = systemPreferences.getInt("TA/vol", DEFAULT_VOLUME);
     M5.Display.setBrightness(internalState.brightnessSetupBrightnessCounter);
     M5.Speaker.setVolume(internalState.volumeSetupVolumeCounter);
     internalState.soundSetupExternalState = systemPreferences.getBool("TA/snd_es", DEFAULT_SOUND_ES);
-    internalState.soundSetupKeyboard = systemPreferences.getUChar("TA/snd_kbd", DEFAULT_SOUND_KBD);
-    internalState.soundSetupTOTP = systemPreferences.getUChar("TA/snd_totp", DEFAULT_SOUND_TOTP);
+    internalState.soundSetupKeyboard = systemPreferences.getInt("TA/snd_kbd", DEFAULT_SOUND_KBD);
+    internalState.soundSetupTOTP = systemPreferences.getInt("TA/snd_totp", DEFAULT_SOUND_TOTP);
     internalState.soundSetupScreenshot = systemPreferences.getBool("TA/snd_scr", DEFAULT_SOUND_SCR);
 
     SPI.begin(40, 39, 14, 12);
     // Проверка наличия SD
-    if (!SD.begin(12, SPI, 25000000)) {
+    if (!SD.begin(12, SPI, 15000000)) { // 25000000
         drawMessage({"SD NOT FOUND", {"Insert SD and reboot", &fonts::Font2}});
         while (true) delay(10000);
     }
@@ -2697,7 +2777,7 @@ void loop() {
     switch (internalState.currentExternalState) {
     case STATE_SPLASH_SCREEN:
         // Анимация на экране загрузки
-        static uint32_t lastSplashAnimationTime = 0;
+        static ulong lastSplashAnimationTime = 0;
         // Частота кадров 1к/33мс = 30к/с
         if (millis() - lastSplashAnimationTime > 33) {
             lastSplashAnimationTime = millis();
@@ -2712,7 +2792,7 @@ void loop() {
         }
     case STATE_CHANGE_PASSWORD:
         // Мигание курсора на экране
-        static uint32_t lastCursorBlinkTime = 0;
+        static ulong lastCursorBlinkTime = 0;
         // Частота мигания 1к/100 мс = 10к/с
         if (millis() - lastCursorBlinkTime > 100) {
             lastCursorBlinkTime = millis();
@@ -2721,7 +2801,7 @@ void loop() {
         break; // Общий для двух
     case STATE_VOLUME_SETUP:
         // Анимация спектра на экране настройки звука
-        static uint32_t lastSpectrumAnimationTime = 0;
+        static ulong lastSpectrumAnimationTime = 0;
         // Частота кадров 1к/16мс = 62.5к/с
         if (millis() - lastSpectrumAnimationTime > 16) {
             lastSpectrumAnimationTime = millis();
