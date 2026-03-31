@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Device-M5Stack%20Cardputer%20ADV-orange?style=for-the-badge" alt="Device">
-  <img src="https://img.shields.io/badge/Version-1.3.3-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.5.0-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
 </p>
 
@@ -19,6 +19,14 @@
 Автономное приложение для генерации TOTP-кодов на устройстве **M5Stack Cardputer ADV**. Позволяет хранить зашифрованные данные на SD-карте и вводить коды на компьютер через USB-соединение (эмуляция клавиатуры).
 
 ⚠️ Внимание: Данные шифруются алгоритмом AES-256 (PBKDF2, 10,000 итераций). Функция восстановления пароля отсутствует. Если вы забудете мастер-пароль, доступ к вашим аккаунтам будет невозможен.
+
+### 🛠 Новое в версии 1.5.0
+
+- **Синхронизация времени**: Добавлена автоматическая синхронизация времени по Wi-Fi.
+- **Управление Wi-Fi**: Реализован менеджер сетей — сканирование, подключение, управление списком сохранённых сетей.
+- **Энергосбережение**: Добавлен спящий режим — экран гаснет автоматически через 30 секунд бездействия.
+- **Безопасность**: Все данные о Wi-Fi сетях хранятся в зашифрованном виде на SD-карте.
+- **Оптимизация**: Проведён рефакторинг кода, улучшены имена переменных, функций и элементов интерфейса.
 
 ### ✨ Новое в версии 1.3.0
 
@@ -61,15 +69,6 @@
 </tr>
 <tr>
 <td align="center"><img src=".screenshots/scr_0021.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0022.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0023.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0024.bmp" width="240"></td>
-</tr>
-<tr>
-<td align="center"><img src=".screenshots/scr_0025.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0026.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0027.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0028.bmp" width="240"></td>
 </tr>
 </table>
 
@@ -121,6 +120,14 @@ Standalone TOTP authenticator for **M5Stack Cardputer ADV**. It provides encrypt
 
 ⚠️ Warning: Data is encrypted using AES-256 (PBKDF2, 10,000 iterations). There is no password recovery. If you forget your Master Password, your data is lost forever.
 
+### 🛠 New in Version 1.5.0
+
+- **Time Synchronization**: Added automatic time sync via Wi-Fi.
+- **Wi-Fi Management**: Introduced a full-featured network manager with scanning, connection, and saved network management.
+- **Power Saving**: Added sleep mode — the screen automatically turns off after 30 seconds of inactivity.
+- **Security**: All Wi-Fi credentials are now stored encrypted on the SD card.
+- **Optimization**: Code refactoring completed; improved naming of variables, functions, and UI elements for better readability and maintainability.
+
 ### ✨ New in Version 1.3.0
 
 - **Extended Settings:** Control over screen brightness, speaker volume, and audio feedback type.
@@ -162,15 +169,6 @@ Standalone TOTP authenticator for **M5Stack Cardputer ADV**. It provides encrypt
 </tr>
 <tr>
 <td align="center"><img src=".screenshots/scr_0021.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0022.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0023.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0024.bmp" width="240"></td>
-<tr>
-<td align="center"><img src=".screenshots/scr_0025.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0026.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0027.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0028.bmp" width="240"></td>
-</tr>
 </tr>
 </table>
 
