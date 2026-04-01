@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Device-M5Stack%20Cardputer%20ADV-orange?style=for-the-badge" alt="Device">
-  <img src="https://img.shields.io/badge/Version-1.5.0-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.5.2-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
 </p>
 
@@ -19,6 +19,12 @@
 Автономное приложение для генерации TOTP-кодов на устройстве **M5Stack Cardputer ADV**. Позволяет хранить зашифрованные данные на SD-карте и вводить коды на компьютер через USB-соединение (эмуляция клавиатуры).
 
 ⚠️ Внимание: Данные шифруются алгоритмом AES-256 (PBKDF2, 10,000 итераций). Функция восстановления пароля отсутствует. Если вы забудете мастер-пароль, доступ к вашим аккаунтам будет невозможен.
+
+### 🛡️ Новое в версии 1.5.2
+
+- **Деаутентификация**: Добавлена опция в меню настроек для принудительной деаутентификации хранилища.
+- **Автоматическая деаутентификация**: Деаутентификация происходит автоматически через 120 секунд бездействия.
+- **USB HID**: Исправлена работа в режиме USB-клавиатуры для более быстрого и надёжного ввода.
 
 ### 🛠 Новое в версии 1.5.0
 
@@ -119,6 +125,12 @@
 Standalone TOTP authenticator for **M5Stack Cardputer ADV**. It provides encrypted SD storage and automatic code entry via USB-HID (keyboard emulation).
 
 ⚠️ Warning: Data is encrypted using AES-256 (PBKDF2, 10,000 iterations). There is no password recovery. If you forget your Master Password, your data is lost forever.
+
+### 🛡️ New in Version 1.5.2
+
+- **Deauthorization**: Added an option in the settings menu to manually force vault deauthorization.
+- **Automatic Deauthorization**: The vault now automatically deauthorizes after 120 seconds of inactivity.
+- **USB HID**: Improved USB keyboard mode for faster and more reliable input.
 
 ### 🛠 New in Version 1.5.0
 

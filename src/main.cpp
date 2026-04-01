@@ -31,12 +31,13 @@
 #include "mbedtls/md.h"
 #include "mbedtls/pkcs5.h"
 
-#define MINIMUM_UNIX_TS 1774915200
-#define MINIMUM_DATE "20260331000000"
+#define MINIMUM_UNIX_TS 1775001600
+#define MINIMUM_DATE "20260401000000"
 #define DEFAULT_UTC 3
-#define DEFAULT_BRIGHTNESS 130
+#define DEFAULT_BRIGHTNESS 100
 #define DEFAULT_SCREEN_SAVER 30000
-#define DEFAULT_VOLUME 80
+#define DEFAULT_VAULT_DEAUTH 120000
+#define DEFAULT_VOLUME 60
 #define DEFAULT_SOUND_ES false
 #define DEFAULT_SOUND_KBD 1
 #define DEFAULT_SOUND_SCR true
@@ -44,7 +45,7 @@
 
 const char *DATA_FILE_PATH = "/by_chillyc0de/TOTP_Auth/data";
 const char *SCREENSHOTS_DIR_PATH = "/by_chillyc0de/TOTP_Auth/screenshots/";
-const char *FIRMWARE_VERSION = "v1.5.0";
+const char *FIRMWARE_VERSION = "v1.5.2";
 
 const int SCREEN_WIDTH = 240;
 const int SCREEN_HEIGHT = 135;
@@ -161,7 +162,7 @@ struct InternalState {
     // Vault
     uint8_t salt[16];
     bool isSaltInitialized = false;
-    bool isLoggedIn = false;
+    bool isVaultAuthorized = false;
 
     // Time
     bool isTimeConfigured = false;
@@ -836,6 +837,74 @@ void switchExternalState(ExternalState externalState) {
     internalState.requiresRedraw = true;
 
     switch (externalState) {
+    case STATE_VAULT_AUTH: {
+        if (!internalState.isVaultAuthorized) break;
+
+        // Затираем содержимое аккаунтов
+        for (Account &acc : savedAccounts) {
+            for (int i = 0; i < acc.name.length(); i++) acc.name[i] = '\0';
+            acc.name = "";
+            for (int i = 0; i < acc.key.length(); i++) acc.key[i] = '\0';
+            acc.key = "";
+        }
+        savedAccounts.clear();
+        savedAccounts.shrink_to_fit();
+
+        // Затираем содержимое сетей
+        for (WiFiNetwork &wn : savedWiFiNetworks) {
+            for (int i = 0; i < wn.ssid.length(); i++) wn.ssid[i] = '\0';
+            wn.ssid = "";
+            for (int i = 0; i < wn.password.length(); i++) wn.password[i] = '\0';
+            wn.password = "";
+        }
+        savedWiFiNetworks.clear();
+        savedWiFiNetworks.shrink_to_fit();
+
+        // Затираем соль
+        esp_fill_random(internalState.salt, 16);
+        internalState.isSaltInitialized = false;
+
+        // Затираем пароль хранилища
+        for (unsigned int i = 0; i < internalState.VaultAuth_PasswordInput.length(); i++) {
+            internalState.VaultAuth_PasswordInput[i] = '\0';
+        }
+        internalState.VaultAuth_PasswordInput = "";
+        internalState.VaultAuth_IsPasswordVisible = false;
+        internalState.VaultAuth_CursorPosition = 0;
+        internalState.VaultAuth_ScrollOffset = 0;
+
+        // Затираем пароль сети
+        for (unsigned int i = 0; i < internalState.WiFiConnect_PasswordInput.length(); i++) {
+            internalState.WiFiConnect_PasswordInput[i] = '\0';
+        }
+        internalState.WiFiConnect_PasswordInput = "";
+        internalState.WiFiConnect_IsPasswordVisible = false;
+        internalState.WiFiConnect_CursorPosition = 0;
+        internalState.WiFiConnect_ScrollOffset = 0;
+
+        // Затираем пароль изменения
+        for (unsigned int i = 0; i < internalState.VaultPasswordChange_PasswordInput.length(); i++) {
+            internalState.VaultPasswordChange_PasswordInput[i] = '\0';
+        }
+        internalState.VaultPasswordChange_PasswordInput = "";
+        internalState.VaultPasswordChange_IsPasswordVisible = false;
+        internalState.VaultPasswordChange_CursorPosition = 0;
+        internalState.VaultPasswordChange_ScrollOffset = 0;
+
+        // Затираем измененные данные аккаунта
+        for (unsigned int i = 0; i < internalState.AccountEditor_NameInput.length(); i++) {
+            internalState.AccountEditor_NameInput[i] = '\0';
+        }
+        internalState.AccountEditor_NameInput = "";
+        for (unsigned int i = 0; i < internalState.AccountEditor_KeyInput.length(); i++) {
+            internalState.AccountEditor_KeyInput[i] = '\0';
+        }
+        internalState.AccountEditor_KeyInput = "";
+
+        // Отмена аутентификации
+        internalState.isVaultAuthorized = false;
+        break;
+    }
     case STATE_TIME_CONFIG: {
         // Подстановка текущего времени
         time_t nowTime = time(NULL);
@@ -892,9 +961,15 @@ struct MenuOption {
 
 const MenuOption settingsMenuOptions[] = {
     {
-        "[Enter]: Return to accounts",
+        "Return to accounts",
         []() {
             switchExternalState(STATE_ACCOUNT_LIST);
+        },
+    },
+    {
+        "Deauthorize vault",
+        []() {
+            switchExternalState(STATE_VAULT_AUTH);
         },
     },
     {
@@ -1015,6 +1090,7 @@ String generateTOTP(const String &base32Secret, int algo, int digits, int period
     mbedtls_md_init(&ctx);
     mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 1);
     mbedtls_md_hmac_starts(&ctx, key, keyLen);
+    mbedtls_platform_zeroize(key, sizeof(key));
     mbedtls_md_hmac_update(&ctx, counterBytes, 8);
     mbedtls_md_hmac_finish(&ctx, hash);
     mbedtls_md_free(&ctx);
@@ -1207,15 +1283,25 @@ bool decryptVault(const std::vector<uint8_t> &encBuf, const uint8_t *salt, const
     mbedtls_aes_context aes;
     mbedtls_aes_init(&aes);
     mbedtls_aes_setkey_dec(&aes, key, 256);
+    // Очищаем ключ в стеке перед выходом
+    mbedtls_platform_zeroize(key, sizeof(key));
 
     decBuf.resize(encBuf.size());
-    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_DECRYPT, encBuf.size(), const_cast<uint8_t *>(iv), encBuf.data(), decBuf.data());
+    uint8_t iv_copy[16];
+    memcpy(iv_copy, iv, 16);
+    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_DECRYPT, encBuf.size(), iv_copy, encBuf.data(), decBuf.data());
     mbedtls_aes_free(&aes);
 
     uint8_t padLen = decBuf.back();
-    if (padLen > 16 || padLen == 0) return false;
+    if (padLen > 16 || padLen == 0 || padLen > encBuf.size()) {
+        mbedtls_platform_zeroize(decBuf.data(), decBuf.size()); // ЗАТИРАЕМ
+        return false;
+    }
     for (size_t i = encBuf.size() - padLen; i < encBuf.size(); i++) {
-        if (decBuf[i] != padLen) return false;
+        if (decBuf[i] != padLen) {
+            mbedtls_platform_zeroize(decBuf.data(), decBuf.size()); // ЗАТИРАЕМ
+            return false;
+        }
     }
 
     decBuf.resize(encBuf.size() - padLen);
@@ -1237,10 +1323,15 @@ void encryptVault(const String &jsonStr, const uint8_t *salt, const uint8_t *iv,
     mbedtls_aes_context aes;
     mbedtls_aes_init(&aes);
     mbedtls_aes_setkey_enc(&aes, key, 256);
+    // Очищаем ключ в стеке перед выходом
+    mbedtls_platform_zeroize(key, sizeof(key));
 
     encBuf.resize(paddedLen);
-    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, paddedLen, const_cast<uint8_t *>(iv), plainBuf.data(), encBuf.data());
+    uint8_t iv_copy[16];
+    memcpy(iv_copy, iv, 16);
+    mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, paddedLen, iv_copy, plainBuf.data(), encBuf.data());
     mbedtls_aes_free(&aes);
+    mbedtls_platform_zeroize(plainBuf.data(), plainBuf.size());
 }
 
 bool loadDataFromStorage() {
@@ -1250,8 +1341,21 @@ bool loadDataFromStorage() {
     std::vector<uint8_t> encBuf, decBuf;
 
     if (!readVaultFromSD(salt, iv, encBuf)) return false;
-    if (!decryptVault(encBuf, salt, iv, internalState.VaultAuth_PasswordInput, decBuf)) return false;
-    if (!parseVaultJSON(decBuf)) return false;
+
+    // Если дешифровка не удалась
+    if (!decryptVault(encBuf, salt, iv, internalState.VaultAuth_PasswordInput, decBuf)) {
+        mbedtls_platform_zeroize(decBuf.data(), decBuf.size()); // Затираем
+        return false;
+    }
+
+    // Если парсинг не удался
+    if (!parseVaultJSON(decBuf)) {
+        mbedtls_platform_zeroize(decBuf.data(), decBuf.size()); // Затираем
+        return false;
+    }
+
+    // Если всё ок — данные уже в объектах, затираем временный буфер
+    mbedtls_platform_zeroize(decBuf.data(), decBuf.size());
 
     memcpy(internalState.salt, salt, 16);
     internalState.isSaltInitialized = true;
@@ -1276,15 +1380,24 @@ void saveDataToStorage() {
         internalState.isSaltInitialized = true;
     }
 
-    uint8_t iv[16], orig_iv[16];
-    esp_fill_random(orig_iv, 16);
-    memcpy(iv, orig_iv, 16);
+    uint8_t iv[16];
+    esp_fill_random(iv, 16); // Генерируем чистый IV
 
     String jsonStr = serializeVaultJSON();
     std::vector<uint8_t> encBuf;
 
     encryptVault(jsonStr, internalState.salt, iv, internalState.VaultAuth_PasswordInput, encBuf);
-    writeVaultToSD(internalState.salt, orig_iv, encBuf);
+    writeVaultToSD(internalState.salt, iv, encBuf);
+
+    // Затираем временную JSON строку
+    for (unsigned int i = 0; i < jsonStr.length(); i++) {
+        jsonStr[i] = '\0';
+    }
+    jsonStr = "";
+
+    // encBuf можно просто очистить, там зашифрованные данные
+    encBuf.clear();
+    encBuf.shrink_to_fit();
 }
 
 void performVaultPasswordChange() {
@@ -1989,7 +2102,7 @@ void renderAccountList() {
             bool isSel = (idx == internalState.AccountList_SelectedIndex);
             displaySprite.fillRect(4, yPos, SCREEN_WIDTH - 12, 20, isSel ? UI_ACCENT : UI_BG);
 
-            String txt = (idx == 0) ? "[Enter]: Add new account" : savedAccounts[idx - 1].name;
+            String txt = (idx == 0) ? "      [ Create new account ]" : savedAccounts[idx - 1].name;
             displaySprite.drawString(txt, 12, yPos + 10, &fonts::Font2);
         }
     }
@@ -2127,7 +2240,7 @@ void handleGuide(Keyboard_Class::KeysState kState, char kChar, bool isChange) {
     // Esc
     if (isChange && kChar == '`') {
         playKeyboardSound(kChar, kState);
-        if (!internalState.isLoggedIn) {
+        if (!internalState.isVaultAuthorized) {
             // Если ещё не вошли — на экран логина
             switchExternalState(STATE_VAULT_AUTH);
         } else if (!internalState.isTimeConfigured) {
@@ -2252,12 +2365,10 @@ void handleVaultAuth(Keyboard_Class::KeysState kState, char kChar, bool isChange
         bool isNewVault = !SD.exists(DATA_FILE_PATH);
 
         if (isNewVault || loadDataFromStorage()) {
-            // Успешная аутентификация
-            internalState.isLoggedIn = true;
-
             // Если файла нет, создаем по умолчанию
             if (isNewVault) saveDataToStorage();
-
+            // Успешная аутентификация
+            internalState.isVaultAuthorized = true;
             switchExternalState(STATE_TIME_CONFIG);
         } else {
             // Cообщение о неправильном пароле
@@ -3185,10 +3296,14 @@ void handleAccountTOTPView(Keyboard_Class::KeysState kState, char kChar, bool is
         String code = generateTOTP(acc.key, acc.algo, acc.digits, acc.period, time(NULL));
 
         drawMessage({"TYPING", "VIA USB"});
+
+        usbKeyboard.begin();
         for (char c : code) {
             usbKeyboard.write(c);
-            delay(15);
+            delay(10);
         }
+        usbKeyboard.end();
+
         switch (internalState.SoundConfig_TOTPSound) {
         case 0:
             delay(300);
@@ -3229,7 +3344,19 @@ void handleAccountRemoval(Keyboard_Class::KeysState kState, char kChar, bool isC
             internalState.requiresRedraw = true;
         } else {
             int deletedIndex = internalState.AccountList_SelectedIndex;
-            savedAccounts.erase(savedAccounts.begin() + (deletedIndex - 1));
+            int targetIdx = deletedIndex - 1;
+            Account &accToDelete = savedAccounts[targetIdx];
+
+            for (int i = 0; i < accToDelete.name.length(); i++) {
+                accToDelete.name[i] = '\0';
+            }
+            accToDelete.name = "";
+            for (int i = 0; i < accToDelete.key.length(); i++) {
+                accToDelete.key[i] = '\0';
+            }
+            accToDelete.key = "";
+            savedAccounts.erase(savedAccounts.begin() + targetIdx);
+
             saveDataToStorage();
 
             drawMessage({"ACCOUNT", "DELETED"});
@@ -3491,6 +3618,10 @@ void processExternalStateEvents() {
             M5.Display.wakeup(); // Команда проснуться контроллеру дисплея
         }
     }
+    // Деаутентификация через 120 секунд
+    if ((millis() - internalState.lastKeyPressTime > DEFAULT_VAULT_DEAUTH) && internalState.isVaultAuthorized) {
+        switchExternalState(STATE_VAULT_AUTH);
+    }
 }
 
 // --- ОБРАБОТЧИК СКРИНШОТОВ ---
@@ -3652,7 +3783,6 @@ void setup() {
     }
 
     USB.begin();
-    usbKeyboard.begin();
 
     switchExternalState(STATE_SPLASH);
 }
