@@ -2369,7 +2369,7 @@ void handleVaultAuth(Keyboard_Class::KeysState kState, char kChar, bool isChange
             if (isNewVault) saveDataToStorage();
             // Успешная аутентификация
             internalState.isVaultAuthorized = true;
-            switchExternalState(STATE_TIME_CONFIG);
+            switchExternalState(internalState.isTimeConfigured ? STATE_ACCOUNT_LIST : STATE_TIME_CONFIG);
         } else {
             // Cообщение о неправильном пароле
             drawMessage({"WRONG", "PASSWORD"}, UI_FG, UI_DANGER);
