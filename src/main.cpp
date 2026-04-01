@@ -79,7 +79,7 @@ const String userGuideLines[] = {
     " Secret keys must be Base32 (A-Z, 2-7 only).",
     " * View TOTP: Generate the current code.",
     " * View QR: Display QR code for migration.",
-    " * Edit/Delete: Manage your accounts.",
+    " * Edit/Remove: Manage your accounts.",
     "",
     "-------- 3. USB  AUTO-TYPE --------",
     " Connect the device to a PC via USB.",
@@ -2373,7 +2373,7 @@ void handleVaultAuth(Keyboard_Class::KeysState kState, char kChar, bool isChange
         } else {
             // Cообщение о неправильном пароле
             drawMessage({"WRONG", "PASSWORD"}, UI_FG, UI_DANGER);
-            delay(400);
+            delay(600);
             internalState.requiresRedraw = true;
         }
         return;
@@ -3343,27 +3343,27 @@ void handleAccountRemoval(Keyboard_Class::KeysState kState, char kChar, bool isC
             internalState.AccountRemoval_isPendingConfirmation = true;
             internalState.requiresRedraw = true;
         } else {
-            int deletedIndex = internalState.AccountList_SelectedIndex;
-            int targetIdx = deletedIndex - 1;
-            Account &accToDelete = savedAccounts[targetIdx];
+            int removeIndex = internalState.AccountList_SelectedIndex;
+            int targetIdx = removeIndex - 1;
+            Account &accToRemove = savedAccounts[targetIdx];
 
-            for (int i = 0; i < accToDelete.name.length(); i++) {
-                accToDelete.name[i] = '\0';
+            for (int i = 0; i < accToRemove.name.length(); i++) {
+                accToRemove.name[i] = '\0';
             }
-            accToDelete.name = "";
-            for (int i = 0; i < accToDelete.key.length(); i++) {
-                accToDelete.key[i] = '\0';
+            accToRemove.name = "";
+            for (int i = 0; i < accToRemove.key.length(); i++) {
+                accToRemove.key[i] = '\0';
             }
-            accToDelete.key = "";
+            accToRemove.key = "";
             savedAccounts.erase(savedAccounts.begin() + targetIdx);
 
             saveDataToStorage();
 
-            drawMessage({"ACCOUNT", "DELETED"});
-            delay(400);
+            drawMessage({"ACCOUNT", "REMOVED"});
+            delay(600);
 
             // Смещение индекса на предыдущий элемент списка
-            internalState.AccountList_SelectedIndex = max(0, deletedIndex - 1);
+            internalState.AccountList_SelectedIndex = max(0, removeIndex - 1);
             internalState.AccountList_ScrollOffset = max(0, internalState.AccountList_SelectedIndex - 2);
 
             internalState.AccountRemoval_isPendingConfirmation = false;
