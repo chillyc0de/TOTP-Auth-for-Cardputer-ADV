@@ -1,9 +1,9 @@
 # TOTP Auth for Cardputer ADV
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Device-M5Stack%20Cardputer%20ADV-orange?style=for-the-badge" alt="Device">
-  <img src="https://img.shields.io/badge/Version-1.5.2-blue?style=for-the-badge" alt="Version">
-  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
+<img src="https://img.shields.io/badge/Device-M5Stack%20Cardputer%20ADV-orange?style=for-the-badge" alt="Device">
+<img src="https://img.shields.io/badge/Version-1.6.0-blue?style=for-the-badge" alt="Version">
+<img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
 </p>
 
 ---
@@ -19,6 +19,12 @@
 Автономное приложение для генерации TOTP-кодов на устройстве **M5Stack Cardputer ADV**. Позволяет хранить зашифрованные данные на SD-карте и вводить коды на компьютер через USB-соединение (эмуляция клавиатуры).
 
 ⚠️ Внимание: Данные шифруются алгоритмом AES-256 (PBKDF2, 10,000 итераций). Функция восстановления пароля отсутствует. Если вы забудете мастер-пароль, доступ к вашим аккаунтам будет невозможен.
+
+### 🎥 Новое в версии 1.6.0
+
+- **Запись экрана**: Добавлена возможность захвата экрана в последовательность BMP-файлов. Идеально подходит для создания качественных скриншотов, GIF-анимаций и видеообзоров интерфейса.
+- **Ускорение SD-карты**: Оптимизирована работа с картой памяти (частота шины SPI увеличена до 40 МГц), что значительно ускоряет процесс сохранения кадров и чтение данных.
+- **Фоновые процессы**: Доработана логика фоновых процессов для повышения стабильности и плавности работы устройства.
 
 ### 🛡️ Новое в версии 1.5.2
 
@@ -42,41 +48,33 @@
 
 ### 🖼 Интерфейс
 
-<table align="center">
-<tr>
-<td align="center"><img src=".screenshots/scr_0001.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0002.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0003.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0004.bmp" width="240"></td>
-</tr>
-<tr>
-<td align="center"><img src=".screenshots/scr_0005.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0006.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0007.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0008.bmp" width="240"></td>
-</tr>
-<tr>
-<td align="center"><img src=".screenshots/scr_0009.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0010.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0011.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0012.bmp" width="240"></td>
-</tr>
-<tr>
-<td align="center"><img src=".screenshots/scr_0013.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0014.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0015.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0016.bmp" width="240"></td>
-</tr>
-<tr>
-<td align="center"><img src=".screenshots/scr_0017.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0018.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0019.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0020.bmp" width="240"></td>
-</tr>
-<tr>
-<td align="center"><img src=".screenshots/scr_0021.bmp" width="240"></td>
-</tr>
-</table>
+<p align="center">
+  <img src=".captures/rec_0001.gif" width="240" />
+  <details align="center">
+    <summary align="center">📸 Посмотреть все скриншоты</summary>
+    <img src=".captures/scr_0001.bmp" width="240" />
+    <img src=".captures/scr_0002.bmp" width="240" />
+    <img src=".captures/scr_0003.bmp" width="240" />
+    <img src=".captures/scr_0004.bmp" width="240" />
+    <img src=".captures/scr_0005.bmp" width="240" />
+    <img src=".captures/scr_0006.bmp" width="240" />
+    <img src=".captures/scr_0007.bmp" width="240" />
+    <img src=".captures/scr_0008.bmp" width="240" />
+    <img src=".captures/scr_0009.bmp" width="240" />
+    <img src=".captures/scr_0010.bmp" width="240" />
+    <img src=".captures/scr_0011.bmp" width="240" />
+    <img src=".captures/scr_0012.bmp" width="240" />
+    <img src=".captures/scr_0013.bmp" width="240" />
+    <img src=".captures/scr_0014.bmp" width="240" />
+    <img src=".captures/scr_0015.bmp" width="240" />
+    <img src=".captures/scr_0016.bmp" width="240" />
+    <img src=".captures/scr_0017.bmp" width="240" />
+    <img src=".captures/scr_0018.bmp" width="240" />
+    <img src=".captures/scr_0019.bmp" width="240" />
+    <img src=".captures/scr_0020.bmp" width="240" />
+    <img src=".captures/scr_0021.bmp" width="240" />
+  </details>
+</p>
 
 ### 🚀 Установка
 
@@ -126,6 +124,12 @@ Standalone TOTP authenticator for **M5Stack Cardputer ADV**. It provides encrypt
 
 ⚠️ Warning: Data is encrypted using AES-256 (PBKDF2, 10,000 iterations). There is no password recovery. If you forget your Master Password, your data is lost forever.
 
+### 🎥 New in Version 1.6.0
+
+- **Screen Recording**: Added the ability to capture the screen as a sequence of BMP files. Perfect for creating high-quality screenshots, GIF animations, and video reviews of the interface.
+- **SD Card Acceleration**: Optimized memory card performance (SPI bus frequency increased to 40 MHz), significantly speeding up frame saving and data reading.
+- **Background Processes**: Refined background process logic to improve overall stability and system smoothness.
+
 ### 🛡️ New in Version 1.5.2
 
 - **Deauthorization**: Added an option in the settings menu to manually force vault deauthorization.
@@ -148,41 +152,33 @@ Standalone TOTP authenticator for **M5Stack Cardputer ADV**. It provides encrypt
 
 ### 🖼 Interface
 
-<table align="center">
-<tr>
-<td align="center"><img src=".screenshots/scr_0001.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0002.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0003.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0004.bmp" width="240"></td>
-</tr>
-<tr>
-<td align="center"><img src=".screenshots/scr_0005.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0006.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0007.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0008.bmp" width="240"></td>
-</tr>
-<tr>
-<td align="center"><img src=".screenshots/scr_0009.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0010.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0011.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0012.bmp" width="240"></td>
-</tr>
-<tr>
-<td align="center"><img src=".screenshots/scr_0013.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0014.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0015.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0016.bmp" width="240"></td>
-</tr>
-<tr>
-<td align="center"><img src=".screenshots/scr_0017.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0018.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0019.bmp" width="240"></td>
-<td align="center"><img src=".screenshots/scr_0020.bmp" width="240"></td>
-</tr>
-<tr>
-<td align="center"><img src=".screenshots/scr_0021.bmp" width="240"></td>
-</tr>
-</table>
+<p align="center">
+  <img src=".captures/rec_0001.gif" width="240" />
+  <details align="center">
+    <summary align="center">📸 View all screenshots</summary>
+    <img src=".captures/scr_0001.bmp" width="240" />
+    <img src=".captures/scr_0002.bmp" width="240" />
+    <img src=".captures/scr_0003.bmp" width="240" />
+    <img src=".captures/scr_0004.bmp" width="240" />
+    <img src=".captures/scr_0005.bmp" width="240" />
+    <img src=".captures/scr_0006.bmp" width="240" />
+    <img src=".captures/scr_0007.bmp" width="240" />
+    <img src=".captures/scr_0008.bmp" width="240" />
+    <img src=".captures/scr_0009.bmp" width="240" />
+    <img src=".captures/scr_0010.bmp" width="240" />
+    <img src=".captures/scr_0011.bmp" width="240" />
+    <img src=".captures/scr_0012.bmp" width="240" />
+    <img src=".captures/scr_0013.bmp" width="240" />
+    <img src=".captures/scr_0014.bmp" width="240" />
+    <img src=".captures/scr_0015.bmp" width="240" />
+    <img src=".captures/scr_0016.bmp" width="240" />
+    <img src=".captures/scr_0017.bmp" width="240" />
+    <img src=".captures/scr_0018.bmp" width="240" />
+    <img src=".captures/scr_0019.bmp" width="240" />
+    <img src=".captures/scr_0020.bmp" width="240" />
+    <img src=".captures/scr_0021.bmp" width="240" />
+  </details>
+</p>
 
 ### 🚀 Installation
 

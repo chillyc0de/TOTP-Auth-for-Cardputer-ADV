@@ -31,21 +31,21 @@
 #include "mbedtls/md.h"
 #include "mbedtls/pkcs5.h"
 
-#define MINIMUM_UNIX_TS 1775001600
-#define MINIMUM_DATE "20260401000000"
+#define MINIMUM_UNIX_TS 1775260800
+#define MINIMUM_DATE "20260404000000"
 #define DEFAULT_UTC 3
-#define DEFAULT_BRIGHTNESS 100
+#define DEFAULT_BRIGHTNESS 80
 #define DEFAULT_SCREEN_SAVER 30000
 #define DEFAULT_VAULT_DEAUTH 120000
-#define DEFAULT_VOLUME 60
+#define DEFAULT_VOLUME 50
 #define DEFAULT_SOUND_ES false
 #define DEFAULT_SOUND_KBD 1
 #define DEFAULT_SOUND_SCR true
 #define DEFAULT_SOUND_TOTP 1
 
-const char *DATA_FILE_PATH = "/by_chillyc0de/TOTP_Auth/data";
-const char *SCREENSHOTS_DIR_PATH = "/by_chillyc0de/TOTP_Auth/screenshots/";
-const char *FIRMWARE_VERSION = "v1.5.2";
+const char *DATA_FILE_PATH = "/by_chillyc0de/TOTP_Auth/data";              // Без "/" в конце
+const char *SCREEN_CAPTURE_DIR_PATH = "/by_chillyc0de/TOTP_Auth/captures"; // Без "/" в конце
+const char *FIRMWARE_VERSION = "v1.6.0";
 
 const int SCREEN_WIDTH = 240;
 const int SCREEN_HEIGHT = 135;
@@ -68,7 +68,7 @@ const String userGuideLines[] = {
     " Offline hardware authenticator",
     " for M5Stack Cardputer ADV.",
     "",
-    "------- 1. GETTING  STARTED -------",
+    "------- 1. GETTING STARTED --------",
     " 1) Set a Master Password for the vault.",
     " 2) Manually set the correct Date, Time",
     "    and UTC offset for synchronization.",
@@ -81,24 +81,23 @@ const String userGuideLines[] = {
     " * View QR: Display QR code for migration.",
     " * Edit/Remove: Manage your accounts.",
     "",
-    "-------- 3. USB  AUTO-TYPE --------",
+    "-------- 3. USB AUTO-TYPE ---------",
     " Connect the device to a PC via USB.",
-    " In the 'View TOTP' menu option,",
+    " While viewing a TOTP code,",
     " press [Enter] to auto-type the code",
-    " using USB-HID keyboard emulation.",
+    " using USB HID keyboard emulation.",
     "",
     "-------- 4. AUDIO FEEDBACK --------",
     " * X-State: Off or Tone.",
-    " * Keyboard: Off, Tone or Morse.",
-    " * TOTP: Off, Tone or Morse.",
-    " * Screenshot: Off or Tone.",
+    " * Keyboard: Off, Tone, or Morse.",
+    " * TOTP: Off, Tone, or Morse.",
+    " * Screen capture: Off or Tone.",
     "",
-    "-------- 5. SCREENSHOTS ---------",
-    " Press [BtnGO] to capture screen.",
+    "-------- 5. SCREEN CAPTURE --------",
+    " Press [BtnGO+Ctrl] to take a screenshot.",
+    " Press [BtnGO+Opt] to toggle recording.",
     " Saved as .bmp to SD card.",
-    " Folder path:",
-    " /by_chillyc0de/TOTP_Auth/screenshots/",
-    " Useful for debugging & logs.",
+    " Useful for debugging, README, etc.",
     "",
     "----------- 6. SECURITY -----------",
     " Vault: Encrypted data file.",
@@ -106,18 +105,18 @@ const String userGuideLines[] = {
     " If lost, data cannot be recovered.",
     " NO PASSWORD RECOVERY!",
     "",
-    "---------- 7. SETTINGS -----------",
-    " Press [Esc] in Account list:",
+    "----------- 7. SETTINGS -----------",
+    " Press [Esc] in the Account list:",
     " * Wi-Fi: Connect to a network",
     "   (for automatic time sync).",
     " * Time: Re-sync the clock.",
     " * Brightness: Adjust brightness.",
     " * Volume: Adjust volume.",
-    " * Sound: Off, Tones or Morse.",
+    " * Sound: Off, Tones, or Morse.",
     " * Password: Change your Master Password.",
     "",
     "------- 8. LICENSE & RIGHTS -------",
-    " Provided 'AS IS' under MIT License.",
+    " Provided 'AS IS' under the MIT License.",
     " Use at your own risk. The author",
     " is not responsible for lost data",
     " or locked accounts.",
@@ -173,6 +172,11 @@ struct InternalState {
     // Screen saver
     ulong lastKeyPressTime = 0;
 
+    // Screen recording
+    bool isScreenRecording = false;
+    int screenRecordDirIndex = 0;
+    int screenRecordFileIndex = 0;
+
     // STATE_GUIDE
     int Guide_ScrollY = 0;
     int Guide_ScrollX = 0;
@@ -215,7 +219,7 @@ struct InternalState {
     bool SoundConfig_ExternalStateSound = DEFAULT_SOUND_ES;
     int SoundConfig_KeyboardSound = DEFAULT_SOUND_KBD;
     int SoundConfig_TOTPSound = DEFAULT_SOUND_TOTP;
-    bool SoundConfig_ScreenshotSound = DEFAULT_SOUND_SCR;
+    bool SoundConfig_ScreenCaptureSound = DEFAULT_SOUND_SCR;
 
     // STATE_VAULT_PASSWORD_CHANGE
     String VaultPasswordChange_PasswordInput = "";
@@ -355,7 +359,7 @@ void playMorseCode(const char *code, float freq, uint32_t dot, uint32_t dash, ui
 }
 
 void playToneExternalState(ExternalState externalState) {
-    if (internalState.VolumeAdjust_VolumeCounter == 0) return;
+    if (internalState.VolumeAdjust_VolumeCounter == 0 || internalState.isScreenRecording) return;
 
     switch (externalState) {
     case STATE_SPLASH:
@@ -460,7 +464,7 @@ void playToneExternalState(ExternalState externalState) {
 }
 
 void playToneKeyboard(char kChar, Keyboard_Class::KeysState kState = {}) {
-    if (internalState.VolumeAdjust_VolumeCounter == 0) return;
+    if (internalState.VolumeAdjust_VolumeCounter == 0 || internalState.isScreenRecording) return;
 
     float frequency = 1000;
     const uint32_t duration = 40;
@@ -560,7 +564,7 @@ void playToneKeyboard(char kChar, Keyboard_Class::KeysState kState = {}) {
 }
 
 void playMorseKeyboard(char kChar, Keyboard_Class::KeysState kState = {}) {
-    if (internalState.VolumeAdjust_VolumeCounter == 0) return;
+    if (internalState.VolumeAdjust_VolumeCounter == 0 || internalState.isScreenRecording) return;
 
     float frequency = 1000;
     const uint32_t dot_duration = 50;
@@ -803,7 +807,7 @@ void playKeyboardSound(char kChar, Keyboard_Class::KeysState kState = {}) {
 }
 
 void playToneTOTP() {
-    if (internalState.VolumeAdjust_VolumeCounter == 0) return;
+    if (internalState.VolumeAdjust_VolumeCounter == 0 || internalState.isScreenRecording) return;
 
     M5.Speaker.tone(1500, 40);
     delay(50);
@@ -814,7 +818,7 @@ void playToneTOTP() {
 }
 
 void playMorseTOTP(const String &totp) {
-    if (internalState.VolumeAdjust_VolumeCounter == 0) return;
+    if (internalState.VolumeAdjust_VolumeCounter == 0 || internalState.isScreenRecording) return;
     for (int i = 0; i < totp.length(); i++) {
         playMorseKeyboard(totp[i]);
         delay(100);
@@ -822,13 +826,30 @@ void playMorseTOTP(const String &totp) {
 }
 
 void playToneScreenshot() {
-    if (internalState.VolumeAdjust_VolumeCounter == 0) return;
-
+    if (internalState.VolumeAdjust_VolumeCounter == 0 || internalState.isScreenRecording) return;
     M5.Speaker.tone(1000, 60);
     delay(40);
     M5.Speaker.tone(900, 60);
     delay(40);
     M5.Speaker.tone(800, 60);
+}
+
+void playToneScreenRecordingStart() {
+    if (internalState.VolumeAdjust_VolumeCounter == 0) return;
+    // Быстрое скольжение вверх
+    for (int f = 800; f <= 1200; f += 200) {
+        M5.Speaker.tone(f, 30);
+        delay(30);
+    }
+}
+
+void playToneScreenRecordingStop() {
+    if (internalState.VolumeAdjust_VolumeCounter == 0) return;
+    // Быстрое скольжение вниз
+    for (int f = 1200; f >= 800; f -= 200) {
+        M5.Speaker.tone(f, 30);
+        delay(30);
+    }
 }
 
 // --- ПЕРЕКЛЮЧЕНИЕ СОСТОЯНИЙ ---
@@ -1155,8 +1176,8 @@ bool isNextDateTimeDigitValid(const String &currentString, char nextDigit) {
 }
 
 // --- ФУНКЦИИ ДЛЯ РАБОТЫ С ДАННЫМИ И ХРАНИЛИЩЕМ ---
-void ensureDirectoryExists(const char *dirPath, bool isFilePath = false) {
-    String fullPath = String(dirPath);
+void ensureDirectoryExists(const String &dirPath, bool isFilePath = false) {
+    String fullPath = dirPath;
 
     // Если это путь к файлу, отрезаем имя файла
     if (isFilePath) {
@@ -1180,6 +1201,9 @@ void ensureDirectoryExists(const char *dirPath, bool isFilePath = false) {
 
         currentIdx = slashIdx + 1;
     }
+}
+void ensureDirectoryExists(const char *dirPath, bool isFilePath = false) {
+    ensureDirectoryExists(String(dirPath), isFilePath);
 }
 
 bool readVaultFromSD(uint8_t *salt, uint8_t *iv, std::vector<uint8_t> &encBuf) {
@@ -1993,7 +2017,7 @@ void renderSoundConfig() {
         "X-State: < " + String(internalState.SoundConfig_ExternalStateSound ? "ON" : "OFF") + " >",
         "Keyboard: < " + String(kbdModes[internalState.SoundConfig_KeyboardSound]) + " >",
         "TOTP: < " + String(totpModes[internalState.SoundConfig_TOTPSound]) + " >",
-        "Screenshot: < " + String(internalState.SoundConfig_ScreenshotSound ? "ON" : "OFF") + " >",
+        "Screen capture: < " + String(internalState.SoundConfig_ScreenCaptureSound ? "ON" : "OFF") + " >",
     };
 
     displaySprite.fillSprite(UI_BG);
@@ -2230,7 +2254,7 @@ void renderAccountRemoval() {
 // --- ОБРАБОТЧИКИ ЭКРАНОВ ---
 void handleSplash(Keyboard_Class::KeysState kState, char kChar, bool isChange) {
     // Any key
-    if (isChange) {
+    if (isChange && !(kState.opt || kState.ctrl)) {
         playKeyboardSound(kChar, kState);
         switchExternalState(kState.enter ? STATE_VAULT_AUTH : STATE_GUIDE);
     }
@@ -2914,7 +2938,7 @@ void handleSoundConfig(Keyboard_Class::KeysState kState, char kChar, bool isChan
         internalState.SoundConfig_ExternalStateSound = systemPreferences.getBool("TA/snd_es", DEFAULT_SOUND_ES);
         internalState.SoundConfig_KeyboardSound = systemPreferences.getInt("TA/snd_kbd", DEFAULT_SOUND_KBD);
         internalState.SoundConfig_TOTPSound = systemPreferences.getInt("TA/snd_totp", DEFAULT_SOUND_TOTP);
-        internalState.SoundConfig_ScreenshotSound = systemPreferences.getBool("TA/snd_scr", DEFAULT_SOUND_SCR);
+        internalState.SoundConfig_ScreenCaptureSound = systemPreferences.getBool("TA/snd_scr", DEFAULT_SOUND_SCR);
         switchExternalState(STATE_SETTINGS_MENU);
         return;
     }
@@ -2939,7 +2963,7 @@ void handleSoundConfig(Keyboard_Class::KeysState kState, char kChar, bool isChan
             internalState.SoundConfig_TOTPSound = (internalState.SoundConfig_TOTPSound + 2) % 3;
             break;
         case 3: // Скриншот
-            internalState.SoundConfig_ScreenshotSound = !internalState.SoundConfig_ScreenshotSound;
+            internalState.SoundConfig_ScreenCaptureSound = !internalState.SoundConfig_ScreenCaptureSound;
             break;
         }
         internalState.requiresRedraw = true;
@@ -2959,7 +2983,7 @@ void handleSoundConfig(Keyboard_Class::KeysState kState, char kChar, bool isChan
             internalState.SoundConfig_TOTPSound = (internalState.SoundConfig_TOTPSound + 1) % 3;
             break;
         case 3: // Скриншот
-            internalState.SoundConfig_ScreenshotSound = !internalState.SoundConfig_ScreenshotSound;
+            internalState.SoundConfig_ScreenCaptureSound = !internalState.SoundConfig_ScreenCaptureSound;
             break;
         }
         internalState.requiresRedraw = true;
@@ -2971,7 +2995,7 @@ void handleSoundConfig(Keyboard_Class::KeysState kState, char kChar, bool isChan
         systemPreferences.putBool("TA/snd_es", internalState.SoundConfig_ExternalStateSound);
         systemPreferences.putInt("TA/snd_kbd", internalState.SoundConfig_KeyboardSound);
         systemPreferences.putInt("TA/snd_totp", internalState.SoundConfig_TOTPSound);
-        systemPreferences.putBool("TA/snd_scr", internalState.SoundConfig_ScreenshotSound);
+        systemPreferences.putBool("TA/snd_scr", internalState.SoundConfig_ScreenCaptureSound);
         switchExternalState(STATE_SETTINGS_MENU);
         return;
     }
@@ -3543,7 +3567,218 @@ void processUserInterface() {
     internalState.requiresRedraw = false;
 }
 
-// --- ОБРАБОТЧИК ФОНОВЫХ ЗАДАЧ ---
+// --- ОБРАБОТЧИКИ СКРИНШОТОВ ---
+void saveScreenBMP(const char *filePath) {
+    // Запись файла
+    File file = SD.open(filePath, FILE_WRITE);
+    if (!file) return;
+
+    // Заголовок BMP для SCREEN_WIDTHxSCREEN_HEIGHT (24 бита)
+    static const uint32_t fileSize = 54 + (SCREEN_WIDTH * SCREEN_HEIGHT * 3);
+    static const uint8_t header[54] = {
+        'B', 'M',
+        (uint8_t)(fileSize), (uint8_t)(fileSize >> 8), (uint8_t)(fileSize >> 16), (uint8_t)(fileSize >> 24),
+        0, 0, 0, 0, 54, 0, 0, 0,
+        40, 0, 0, 0,
+        (uint8_t)(SCREEN_WIDTH), (uint8_t)(SCREEN_WIDTH >> 8), 0, 0,
+        (uint8_t)(SCREEN_HEIGHT), (uint8_t)(SCREEN_HEIGHT >> 8), 0, 0,
+        1, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    file.write(header, 54);
+
+    static uint8_t lineBuffer[SCREEN_WIDTH * 3];
+    // BMP хранит данные снизу вверх
+    for (int y = SCREEN_HEIGHT - 1; y >= 0; y--) {
+        int pos = 0;
+        for (int x = 0; x < SCREEN_WIDTH; x++) {
+            uint16_t color = displaySprite.readPixel(x, y);
+            lineBuffer[pos++] = (color & 0x001F) << 3; // B
+            lineBuffer[pos++] = (color & 0x07E0) >> 3; // G
+            lineBuffer[pos++] = (color & 0xF800) >> 8; // R
+        }
+        file.write(lineBuffer, sizeof(lineBuffer));
+    }
+    file.close();
+}
+
+void takeScreenshot() {
+    // Инициализация индекса файла при первом вызове
+    static int nextFileIndex = -1;
+    if (nextFileIndex == -1) {
+        ensureDirectoryExists(SCREEN_CAPTURE_DIR_PATH);
+        File scrDir = SD.open(SCREEN_CAPTURE_DIR_PATH);
+        File scrFile = scrDir.openNextFile();
+
+        int maxIndex = -1;
+        while (scrFile) {
+            // Используем полное имя файла из объекта File
+            const char *fileName = scrFile.name();
+
+            // Ищем "scr_" в имени
+            const char *found = strstr(fileName, "scr_");
+            if (found) {
+                // Смещаем указатель на длину строки "scr_"
+                // И берем число сразу после "scr_"
+                int idx = atoi(found + 4);
+                if (idx > maxIndex) maxIndex = idx;
+            }
+            scrFile.close();
+            scrFile = scrDir.openNextFile();
+        }
+        scrDir.close();
+        nextFileIndex = maxIndex + 1;
+    }
+
+    // Формируем имя и путь файла
+    char fileName[32];
+    snprintf(fileName, sizeof(fileName), "scr_%04d.bmp", nextFileIndex);
+    char filePath[128];
+    snprintf(filePath, sizeof(filePath), "%s/%s", SCREEN_CAPTURE_DIR_PATH, fileName);
+
+    // Сохранение в файл
+    saveScreenBMP(filePath);
+
+    // Инкремент для следующего файла
+    nextFileIndex++;
+
+    drawMessage({"SCREENSHOT", "CAPTURED", fileName});
+    // Звуковая индикация
+    if (internalState.SoundConfig_ScreenCaptureSound) playToneScreenshot();
+    delay(600);
+
+    // Принудительное стирание сообщения с экрана
+    internalState.requiresRedraw = true;
+}
+
+void startScreenRecording() {
+    // Инициализация индекса папки при первом вызове
+    static int nextDirIndex = -1;
+    if (nextDirIndex == -1) {
+        ensureDirectoryExists(SCREEN_CAPTURE_DIR_PATH);
+        File scrDir = SD.open(SCREEN_CAPTURE_DIR_PATH);
+        File scrFile = scrDir.openNextFile();
+
+        int maxIndex = -1;
+        while (scrFile) {
+            if (scrFile.isDirectory()) {
+                // Используем полное имя папки из объекта File
+                const char *dirName = scrFile.name();
+
+                // Ищем "rec_" в имени
+                const char *found = strstr(dirName, "rec_");
+                if (found) {
+                    // Смещаем указатель на длину строки "rec_"
+                    // И берем число сразу после "rec_"
+                    int idx = atoi(found + 4);
+                    if (idx > maxIndex) maxIndex = idx;
+                }
+            }
+            scrFile.close();
+            scrFile = scrDir.openNextFile();
+        }
+        scrDir.close();
+        nextDirIndex = maxIndex + 1;
+    }
+
+    internalState.screenRecordDirIndex = nextDirIndex;
+
+    // Формируем имя и путь папки
+    char dirName[32];
+    snprintf(dirName, sizeof(dirName), "rec_%04d/", internalState.screenRecordDirIndex);
+    char dirPath[128];
+    snprintf(dirPath, sizeof(dirPath), "%s/%s", SCREEN_CAPTURE_DIR_PATH, dirName);
+
+    // Создание папки
+    ensureDirectoryExists(dirPath);
+
+    // Инкремент для следующей папки
+    nextDirIndex++;
+
+    // Статус записи
+    internalState.isScreenRecording = true;
+
+    drawMessage({"RECORDING", "STARTED", dirName});
+    // Звуковая индикация
+    if (internalState.SoundConfig_ScreenCaptureSound) playToneScreenRecordingStart();
+    delay(600);
+
+    // Принудительное стирание сообщения с экрана
+    internalState.requiresRedraw = true;
+    return;
+}
+
+void stopScreenRecording() {
+    // Статус записи
+    internalState.isScreenRecording = false;
+
+    char messageBuffer[32];
+    snprintf(messageBuffer, sizeof(messageBuffer), "scr_%04d-%04d.bmp", 0, internalState.screenRecordFileIndex);
+    drawMessage({"RECORDING", "FINISHED", messageBuffer});
+    internalState.screenRecordFileIndex = 0;
+
+    // Звуковая индикация
+    if (internalState.SoundConfig_ScreenCaptureSound) playToneScreenRecordingStop();
+    delay(600);
+
+    // Принудительное стирание сообщения с экрана
+    internalState.requiresRedraw = true;
+    return;
+}
+
+void processScreenCaptureEvents() {
+    // Если BtnA вообще не нажата — выходим
+    if (!M5Cardputer.BtnA.isPressed()) return;
+
+    if (M5Cardputer.Keyboard.isKeyPressed(KEY_LEFT_CTRL)) {
+        // Если зажаты BtnA и Ctrl — это скриншот
+        takeScreenshot();
+        return;
+    }
+    if (M5Cardputer.Keyboard.isKeyPressed(KEY_OPT)) {
+        // Если зажаты BtnA и Opt — это управление записью
+        if (internalState.isScreenRecording) stopScreenRecording();
+        else startScreenRecording();
+        return;
+    }
+}
+
+// --- ОБРАБОТЧИКИ ФОНОВЫХ ЗАДАЧ ---
+void processInternalStateEvents() {
+    // Отключение дисплея через DEFAULT_SCREEN_SAVER секунд
+    if (millis() - internalState.lastKeyPressTime > DEFAULT_SCREEN_SAVER) {
+        if (M5.Display.getBrightness() > 0) {
+            M5.Display.sleep(); // Команда заснуть контроллеру дисплея
+            M5.Display.setBrightness(0);
+        }
+    } else {
+        if (M5.Display.getBrightness() == 0) {
+            M5.Display.setBrightness(internalState.BrightnessAdjust_BrightnessCounter);
+            M5.Display.wakeup(); // Команда проснуться контроллеру дисплея
+        }
+    }
+
+    // Деаутентификация через DEFAULT_VAULT_DEAUTH секунд
+    if ((millis() - internalState.lastKeyPressTime > DEFAULT_VAULT_DEAUTH) && internalState.isVaultAuthorized) {
+        switchExternalState(STATE_VAULT_AUTH);
+    }
+
+    // Запись экрана
+    if (internalState.isScreenRecording) {
+        static ulong lastScreenRecordingTime = 0;
+        // Частота кадров 1к/200мс = 5к/с
+        if (millis() - lastScreenRecordingTime >= 200) {
+            lastScreenRecordingTime = millis();
+
+            // Формируем путь файла
+            char filePath[128];
+            snprintf(filePath, sizeof(filePath), "%s/rec_%04d/scr_%04d.bmp", SCREEN_CAPTURE_DIR_PATH, internalState.screenRecordDirIndex, internalState.screenRecordFileIndex);
+
+            // Сохранение в файл и инкремент для следующего имени
+            saveScreenBMP(filePath);
+            internalState.screenRecordFileIndex++;
+        }
+    }
+}
+
 void processExternalStateEvents() {
     switch (internalState.currentExternalState) {
     case STATE_SPLASH:
@@ -3568,7 +3803,7 @@ void processExternalStateEvents() {
         break; // Общий для трех
     case STATE_WIFI_CONFIG: {
         // Обновление списка доступных сетей в асинхр режиме WiFi.scanNetworks(true);
-        static int lastScanResult;
+        static int lastScanResult = -2;
         int newScanResult = WiFi.scanComplete();
         if (lastScanResult != newScanResult) {
             // drawDebug({(String)lastScanResult, (String)newScanResult});
@@ -3605,157 +3840,6 @@ void processExternalStateEvents() {
         }
         break; // Общий для двух
     }
-
-    // Отключение дисплея через 30 секунд
-    if (millis() - internalState.lastKeyPressTime > DEFAULT_SCREEN_SAVER) {
-        if (M5.Display.getBrightness() > 0) {
-            M5.Display.sleep(); // Команда заснуть контроллеру дисплея
-            M5.Display.setBrightness(0);
-        }
-    } else {
-        if (M5.Display.getBrightness() == 0) {
-            M5.Display.setBrightness(internalState.BrightnessAdjust_BrightnessCounter);
-            M5.Display.wakeup(); // Команда проснуться контроллеру дисплея
-        }
-    }
-    // Деаутентификация через 120 секунд
-    if ((millis() - internalState.lastKeyPressTime > DEFAULT_VAULT_DEAUTH) && internalState.isVaultAuthorized) {
-        switchExternalState(STATE_VAULT_AUTH);
-    }
-}
-
-// --- ОБРАБОТЧИК СКРИНШОТОВ ---
-void processScreenshotEvent() {
-    if (!M5Cardputer.BtnA.isPressed()) return;
-
-    static ulong lastScreenshotTime = 0;
-    if (millis() - lastScreenshotTime < 1000) return;
-    lastScreenshotTime = millis();
-
-    ensureDirectoryExists(SCREENSHOTS_DIR_PATH);
-
-    // Инициализация индекса (поиск максимума) при первом вызове
-    static int nextFileIndex = 0;
-    if (nextFileIndex == 0) {
-        int maxIndex = 0;
-        String dirPath = SCREENSHOTS_DIR_PATH;
-        if (dirPath.endsWith("/")) dirPath.remove(dirPath.length() - 1);
-
-        File scrDir = SD.open(dirPath);
-        if (scrDir && scrDir.isDirectory()) {
-            File scrFile = scrDir.openNextFile();
-            while (scrFile) {
-                // Используем полное имя файла из объекта File
-                const char *fileName = scrFile.name();
-
-                // Ищем "scr_" в имени
-                const char *found = strstr(fileName, "scr_");
-                if (found) {
-                    // Смещаем указатель на длину строки "scr_"
-                    // И берем число сразу после "scr_"
-                    int idx = atoi(found + 4);
-                    if (idx > maxIndex) maxIndex = idx;
-                }
-                scrFile.close();
-                scrFile = scrDir.openNextFile();
-            }
-            scrDir.close();
-        }
-        nextFileIndex = maxIndex + 1;
-    }
-
-    // Формируем финальное имя и путь
-    char fileName[32];
-    char filePath[128];
-    snprintf(fileName, sizeof(fileName), "scr_%04u.bmp", nextFileIndex);
-    snprintf(filePath, sizeof(filePath), "%s%s", SCREENSHOTS_DIR_PATH, fileName);
-
-    // Запись файла
-    File file = SD.open(filePath, FILE_WRITE);
-    if (!file) return;
-
-    uint32_t fileSize = 54 + (SCREEN_WIDTH * SCREEN_HEIGHT * 3);
-    uint8_t header[54] = {
-        'B',
-        'M',
-        (uint8_t)(fileSize),
-        (uint8_t)(fileSize >> 8),
-        (uint8_t)(fileSize >> 16),
-        (uint8_t)(fileSize >> 24),
-        0,
-        0,
-        0,
-        0,
-        54,
-        0,
-        0,
-        0,
-        40,
-        0,
-        0,
-        0,
-        240,
-        0,
-        0,
-        0,
-        121,
-        255,
-        255,
-        255,
-        1,
-        0,
-        24,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-    };
-    file.write(header, 54);
-
-    uint8_t lineBuffer[SCREEN_WIDTH * 3];
-    for (int y = 0; y < SCREEN_HEIGHT; y++) {
-        int pos = 0;
-        for (int x = 0; x < SCREEN_WIDTH; x++) {
-            uint16_t color = displaySprite.readPixel(x, y);
-            lineBuffer[pos++] = (color & 0x001F) << 3; // B
-            lineBuffer[pos++] = (color & 0x07E0) >> 3; // G
-            lineBuffer[pos++] = (color & 0xF800) >> 8; // R
-        }
-        file.write(lineBuffer, sizeof(lineBuffer));
-    }
-    file.close();
-
-    // Инкремент для следующего файла
-    nextFileIndex++;
-
-    drawMessage({"SCREENSHOT", "SAVED", fileName});
-    // Звуковая индикация
-    if (internalState.SoundConfig_ScreenshotSound) playToneScreenshot();
-    delay(600);
-
-    // Принудительное стирание сообщения с экрана
-    internalState.requiresRedraw = true;
 }
 
 void setup() {
@@ -3773,11 +3857,11 @@ void setup() {
     internalState.SoundConfig_ExternalStateSound = systemPreferences.getBool("TA/snd_es", DEFAULT_SOUND_ES);
     internalState.SoundConfig_KeyboardSound = systemPreferences.getInt("TA/snd_kbd", DEFAULT_SOUND_KBD);
     internalState.SoundConfig_TOTPSound = systemPreferences.getInt("TA/snd_totp", DEFAULT_SOUND_TOTP);
-    internalState.SoundConfig_ScreenshotSound = systemPreferences.getBool("TA/snd_scr", DEFAULT_SOUND_SCR);
+    internalState.SoundConfig_ScreenCaptureSound = systemPreferences.getBool("TA/snd_scr", DEFAULT_SOUND_SCR);
 
     SPI.begin(40, 39, 14, 12);
     // Проверка наличия SD
-    if (!SD.begin(12, SPI, 15000000)) { // 25000000
+    if (!SD.begin(12, SPI, 40000000)) {
         drawMessage({"SD NOT FOUND", {"Insert SD and reboot", &fonts::Font2}});
         while (true) delay(10000);
     }
@@ -3791,11 +3875,14 @@ void loop() {
     // Обновление внутренних состояний библиотеки
     M5Cardputer.update();
 
+    // Обработка фоновых событий
+    processInternalStateEvents();
     processExternalStateEvents();
 
     // Захват экрана перед главным обработчиком клавиатуры
-    processScreenshotEvent();
+    processScreenCaptureEvents();
 
+    // Обработка KB и UI
     processKeyboardEvents();
     processUserInterface();
 }
