@@ -20,32 +20,6 @@
 
 ⚠️ Внимание: Данные шифруются алгоритмом AES-256 (PBKDF2, 10,000 итераций). Функция восстановления пароля отсутствует. Если вы забудете мастер-пароль, доступ к вашим аккаунтам будет невозможен.
 
-### 🎥 Новое в версии 1.6.0
-
-- **Запись экрана**: Добавлена возможность захвата экрана в последовательность BMP-файлов. Идеально подходит для создания качественных скриншотов, GIF-анимаций и видеообзоров интерфейса.
-- **Ускорение SD-карты**: Оптимизирована работа с картой памяти (частота шины SPI увеличена до 40 МГц), что значительно ускоряет процесс сохранения кадров и чтение данных.
-- **Фоновые процессы**: Доработана логика фоновых процессов для повышения стабильности и плавности работы устройства.
-
-### 🛡️ Новое в версии 1.5.2
-
-- **Деаутентификация**: Добавлена опция в меню настроек для принудительной деаутентификации хранилища.
-- **Автоматическая деаутентификация**: Деаутентификация происходит автоматически через 120 секунд бездействия.
-- **USB HID**: Исправлена работа в режиме USB-клавиатуры для более быстрого и надёжного ввода.
-
-### 🛠 Новое в версии 1.5.0
-
-- **Синхронизация времени**: Добавлена автоматическая синхронизация времени по Wi-Fi.
-- **Управление Wi-Fi**: Реализован менеджер сетей — сканирование, подключение, управление списком сохранённых сетей.
-- **Энергосбережение**: Добавлен спящий режим — экран гаснет автоматически через 30 секунд бездействия.
-- **Безопасность**: Все данные о Wi-Fi сетях хранятся в зашифрованном виде на SD-карте.
-- **Оптимизация**: Проведён рефакторинг кода, улучшены имена переменных, функций и элементов интерфейса.
-
-### ✨ Новое в версии 1.3.0
-
-- **Расширенные настройки:** Управление яркостью экрана, громкостью динамика и типом звукового отклика.
-- **Звуковая навигация:** Система уникальных тональных последовательностей для каждого экрана, позволяющая ориентироваться в интерфейсе на слух.
-- **Поддержка Морзе:** Возможность озвучки TOTP-кода (цифр) сигналами Морзе для использования устройства «вслепую».
-
 ### 🖼 Интерфейс
 
 <p align="center">
@@ -75,6 +49,32 @@
     <img src=".captures/scr_0021.bmp" width="240" />
   </details>
 </p>
+
+### 🎥 Новое в версии 1.6.0
+
+- **Запись экрана**: Добавлена возможность захвата экрана в последовательность BMP-файлов. Идеально подходит для создания качественных скриншотов, GIF-анимаций и видеообзоров интерфейса.
+- **Ускорение SD-карты**: Оптимизирована работа с картой памяти (частота шины SPI увеличена до 40 МГц), что значительно ускоряет процесс сохранения кадров и чтение данных.
+- **Фоновые процессы**: Доработана логика фоновых процессов для повышения стабильности и плавности работы устройства.
+
+### 🛡️ Новое в версии 1.5.2
+
+- **Деаутентификация**: Добавлена опция в меню настроек для принудительной деаутентификации хранилища.
+- **Автоматическая деаутентификация**: Деаутентификация происходит автоматически через 120 секунд бездействия.
+- **USB HID**: Исправлена работа в режиме USB-клавиатуры для более быстрого и надёжного ввода.
+
+### 🛠 Новое в версии 1.5.0
+
+- **Синхронизация времени**: Добавлена автоматическая синхронизация времени по Wi-Fi.
+- **Управление Wi-Fi**: Реализован менеджер сетей — сканирование, подключение, управление списком сохранённых сетей.
+- **Энергосбережение**: Добавлен спящий режим — экран гаснет автоматически через 30 секунд бездействия.
+- **Безопасность**: Все данные о Wi-Fi сетях хранятся в зашифрованном виде на SD-карте.
+- **Оптимизация**: Проведён рефакторинг кода, улучшены имена переменных, функций и элементов интерфейса.
+
+### ✨ Новое в версии 1.3.0
+
+- **Расширенные настройки:** Управление яркостью экрана, громкостью динамика и типом звукового отклика.
+- **Звуковая навигация:** Система уникальных тональных последовательностей для каждого экрана, позволяющая ориентироваться в интерфейсе на слух.
+- **Поддержка Морзе:** Возможность озвучки TOTP-кода (цифр) сигналами Морзе для использования устройства «вслепую».
 
 ### 🚀 Установка
 
@@ -124,32 +124,6 @@ Standalone TOTP authenticator for **M5Stack Cardputer ADV**. It provides encrypt
 
 ⚠️ Warning: Data is encrypted using AES-256 (PBKDF2, 10,000 iterations). There is no password recovery. If you forget your Master Password, your data is lost forever.
 
-### 🎥 New in Version 1.6.0
-
-- **Screen Recording**: Added the ability to capture the screen as a sequence of BMP files. Perfect for creating high-quality screenshots, GIF animations, and video reviews of the interface.
-- **SD Card Acceleration**: Optimized memory card performance (SPI bus frequency increased to 40 MHz), significantly speeding up frame saving and data reading.
-- **Background Processes**: Refined background process logic to improve overall stability and system smoothness.
-
-### 🛡️ New in Version 1.5.2
-
-- **Deauthorization**: Added an option in the settings menu to manually force vault deauthorization.
-- **Automatic Deauthorization**: The vault now automatically deauthorizes after 120 seconds of inactivity.
-- **USB HID**: Improved USB keyboard mode for faster and more reliable input.
-
-### 🛠 New in Version 1.5.0
-
-- **Time Synchronization**: Added automatic time sync via Wi-Fi.
-- **Wi-Fi Management**: Introduced a full-featured network manager with scanning, connection, and saved network management.
-- **Power Saving**: Added sleep mode — the screen automatically turns off after 30 seconds of inactivity.
-- **Security**: All Wi-Fi credentials are now stored encrypted on the SD card.
-- **Optimization**: Code refactoring completed; improved naming of variables, functions, and UI elements for better readability and maintainability.
-
-### ✨ New in Version 1.3.0
-
-- **Extended Settings:** Control over screen brightness, speaker volume, and audio feedback type.
-- **Audio Navigation:** A system of unique tonal sequences for each screen, enabling eyes-free interface navigation.
-- **Morse Support:** Optional TOTP code playback (digits) using Morse code signals (configurable in Sound settings).
-
 ### 🖼 Interface
 
 <p align="center">
@@ -179,6 +153,32 @@ Standalone TOTP authenticator for **M5Stack Cardputer ADV**. It provides encrypt
     <img src=".captures/scr_0021.bmp" width="240" />
   </details>
 </p>
+
+### 🎥 New in Version 1.6.0
+
+- **Screen Recording**: Added the ability to capture the screen as a sequence of BMP files. Perfect for creating high-quality screenshots, GIF animations, and video reviews of the interface.
+- **SD Card Acceleration**: Optimized memory card performance (SPI bus frequency increased to 40 MHz), significantly speeding up frame saving and data reading.
+- **Background Processes**: Refined background process logic to improve overall stability and system smoothness.
+
+### 🛡️ New in Version 1.5.2
+
+- **Deauthorization**: Added an option in the settings menu to manually force vault deauthorization.
+- **Automatic Deauthorization**: The vault now automatically deauthorizes after 120 seconds of inactivity.
+- **USB HID**: Improved USB keyboard mode for faster and more reliable input.
+
+### 🛠 New in Version 1.5.0
+
+- **Time Synchronization**: Added automatic time sync via Wi-Fi.
+- **Wi-Fi Management**: Introduced a full-featured network manager with scanning, connection, and saved network management.
+- **Power Saving**: Added sleep mode — the screen automatically turns off after 30 seconds of inactivity.
+- **Security**: All Wi-Fi credentials are now stored encrypted on the SD card.
+- **Optimization**: Code refactoring completed; improved naming of variables, functions, and UI elements for better readability and maintainability.
+
+### ✨ New in Version 1.3.0
+
+- **Extended Settings:** Control over screen brightness, speaker volume, and audio feedback type.
+- **Audio Navigation:** A system of unique tonal sequences for each screen, enabling eyes-free interface navigation.
+- **Morse Support:** Optional TOTP code playback (digits) using Morse code signals (configurable in Sound settings).
 
 ### 🚀 Installation
 
