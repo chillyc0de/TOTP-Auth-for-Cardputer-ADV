@@ -31,8 +31,8 @@
 #include "mbedtls/md.h"
 #include "mbedtls/pkcs5.h"
 
-#define MINIMUM_UNIX_TS 1775260800
-#define MINIMUM_DATE "20260404000000"
+#define MINIMUM_UNIX_TS 1775347200
+#define MINIMUM_DATE "20260405000000"
 #define DEFAULT_UTC 3
 #define DEFAULT_BRIGHTNESS 80
 #define DEFAULT_SCREEN_SAVER 30000
@@ -45,7 +45,7 @@
 
 const char *DATA_FILE_PATH = "/by_chillyc0de/TOTP_Auth/data";              // Без "/" в конце
 const char *SCREEN_CAPTURE_DIR_PATH = "/by_chillyc0de/TOTP_Auth/captures"; // Без "/" в конце
-const char *FIRMWARE_VERSION = "v1.6.0";
+const char *FIRMWARE_VERSION = "v1.6.1";
 
 const int SCREEN_WIDTH = 240;
 const int SCREEN_HEIGHT = 135;
@@ -141,6 +141,7 @@ enum ExternalState : uint8_t {
     STATE_BRIGHTNESS_ADJUST,     // Регулировка яркости
     STATE_VOLUME_ADJUST,         // Регулировка громкости
     STATE_SOUND_CONFIG,          // Настройки звука
+    STATE_TIMEOUT_CONFIG,        // Настройки таймаутов для дисплея и деаутентификации
     STATE_VAULT_PASSWORD_CHANGE, // Смена пароля хранилища
 
     // Работа с данными
@@ -220,6 +221,13 @@ struct InternalState {
     int SoundConfig_KeyboardSound = DEFAULT_SOUND_KBD;
     int SoundConfig_TOTPSound = DEFAULT_SOUND_TOTP;
     bool SoundConfig_ScreenCaptureSound = DEFAULT_SOUND_SCR;
+
+    // STATE_TIMEOUT_CONFIG
+    int TimeoutConfig_FieldIndex = 0;
+    int TimeoutConfig_ScreenSaver = DEFAULT_SCREEN_SAVER;
+    String TimeoutConfig_ScreenSaverInput = "";
+    int TimeoutConfig_VaultDeauth = DEFAULT_VAULT_DEAUTH;
+    String TimeoutConfig_VaultDeauthInput = "";
 
     // STATE_VAULT_PASSWORD_CHANGE
     String VaultPasswordChange_PasswordInput = "";
@@ -422,6 +430,11 @@ void playToneExternalState(ExternalState externalState) {
         M5.Speaker.tone(850, 40);
         delay(40);
         M5.Speaker.tone(750, 60);
+        break;
+    case STATE_TIMEOUT_CONFIG:
+        M5.Speaker.tone(1000, 20);
+        delay(100);
+        M5.Speaker.tone(800, 20);
         break;
     case STATE_VAULT_PASSWORD_CHANGE:
         M5.Speaker.tone(750, 60);
@@ -852,6 +865,20 @@ void playToneScreenRecordingStop() {
     }
 }
 
+void playToneVaultDeauth() {
+    if (internalState.VolumeAdjust_VolumeCounter == 0) return;
+
+    // Первый тон: короткий клик
+    M5.Speaker.tone(1200, 40);
+    delay(50);
+
+    // Второй тон: мягкое затухание
+    for (int f = 1000; f >= 600; f -= 100) {
+        M5.Speaker.tone(f, 40);
+        delay(40);
+    }
+}
+
 // --- ПЕРЕКЛЮЧЕНИЕ СОСТОЯНИЙ ---
 void switchExternalState(ExternalState externalState) {
     internalState.currentExternalState = externalState;
@@ -860,6 +887,7 @@ void switchExternalState(ExternalState externalState) {
     switch (externalState) {
     case STATE_VAULT_AUTH: {
         if (!internalState.isVaultAuthorized) break;
+        else playToneVaultDeauth(); // Звуковая индикация
 
         // Затираем содержимое аккаунтов
         for (Account &acc : savedAccounts) {
@@ -956,6 +984,11 @@ void switchExternalState(ExternalState externalState) {
         internalState.WiFiConnect_CursorPosition = 0;
         internalState.WiFiConnect_ScrollOffset = 0;
         break;
+    case STATE_TIMEOUT_CONFIG:
+        // Подстановка значений таймаутов
+        internalState.TimeoutConfig_ScreenSaverInput = String(internalState.TimeoutConfig_ScreenSaver / 1000);
+        internalState.TimeoutConfig_VaultDeauthInput = String(internalState.TimeoutConfig_VaultDeauth / 1000);
+        break;
     case STATE_ACCOUNT_EDITOR:
         // Подстановка данных аккаунта в режиме редактирования
         if (internalState.AccountEditor_IsEditMode) {
@@ -1021,6 +1054,12 @@ const MenuOption settingsMenuOptions[] = {
         "Configure sound",
         []() {
             switchExternalState(STATE_SOUND_CONFIG);
+        },
+    },
+    {
+        "Configure timeout",
+        []() {
+            switchExternalState(STATE_TIMEOUT_CONFIG);
         },
     },
     {
@@ -2033,6 +2072,29 @@ void renderSoundConfig() {
     }
 }
 
+void renderTimeoutConfig() {
+    String fields[2] = {
+        "Screen Saver: " + internalState.TimeoutConfig_ScreenSaverInput + " sec",
+        "Vault Lock: " + internalState.TimeoutConfig_VaultDeauthInput + " sec",
+    };
+
+    displaySprite.fillSprite(UI_BG);
+    drawHeader("TIMEOUT CONFIG");
+    drawFooter({"   [Tab]: Switch    [0-9]:      Type", "   [Esc]: Cancel    [Enter]: Confirm"});
+
+    displaySprite.setTextDatum(top_left);
+    displaySprite.setFont(&fonts::Font2);
+
+    for (int i = 0; i < 2; i++) {
+        displaySprite.setTextColor(internalState.TimeoutConfig_FieldIndex == i ? UI_VALID : UI_FG);
+        displaySprite.drawString(fields[i], 10, 38 + (i * 20));
+    }
+
+    // Сноска 0 = infinity
+    displaySprite.setTextColor(UI_FG);
+    displaySprite.drawString("* 0 sec = infinity (always ON)", 10, 80);
+}
+
 void renderVaultPasswordChange() {
     const int charWidth = 24;
     const int maxCharsPerLine = 10;
@@ -2493,21 +2555,32 @@ void handleTimeConfig(Keyboard_Class::KeysState kState, char kChar, bool isChang
                             struct timeval tv = {.tv_sec = unixtime, .tv_usec = 0};
                             settimeofday(&tv, NULL);
 
+                            // Применяем оффсет
+                            time_t localTime = unixtime + (internalState.TimeConfig_UTCOffsetInput * 3600);
+
                             // Получаем структуру разбитого времени
                             struct tm timeinfo;
-                            gmtime_r(&unixtime, &timeinfo); // используем gmtime_r для UTC или localtime_r для локального
+                            gmtime_r(&localTime, &timeinfo); // Смещенное время
 
-                            // Форматируем строки
+                            // Форматируем строки для сообщения
                             char dateBuf[12]; // YYYY-MM-DD\0
                             char timeBuf[10]; // HH-MM-SS\0
                             sprintf(dateBuf, "%04d-%02d-%02d", timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
-                            sprintf(timeBuf, "%02d-%02d-%02d", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+                            sprintf(timeBuf, "%02d:%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
 
                             drawMessage({dateBuf, timeBuf}, UI_VALID);
                             delay(800);
 
+                            char sysTimeBuf[15]; // YYYYMMDDHHMMSS\0
+                            sprintf(sysTimeBuf, "%04d%02d%02d%02d%02d%02d",
+                                timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                                timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+
+                            systemPreferences.putString("TA/time", String(sysTimeBuf));
+                            systemPreferences.putInt("TA/utc", internalState.TimeConfig_UTCOffsetInput);
+
                             isTimeSynced = true;
-                            break; // Выходим из цикла сетей - время получено!
+                            break; // Выходим из цикла сетей - время получено и сохранено!
 
                         } else {
                             drawMessage({"JSON Error", error.c_str()}, UI_DANGER);
@@ -2935,6 +3008,7 @@ void handleSoundConfig(Keyboard_Class::KeysState kState, char kChar, bool isChan
     // Esc
     if (isChange && kChar == '`') {
         playKeyboardSound(kChar, kState);
+        internalState.SoundConfig_FieldIndex = 0;
         internalState.SoundConfig_ExternalStateSound = systemPreferences.getBool("TA/snd_es", DEFAULT_SOUND_ES);
         internalState.SoundConfig_KeyboardSound = systemPreferences.getInt("TA/snd_kbd", DEFAULT_SOUND_KBD);
         internalState.SoundConfig_TOTPSound = systemPreferences.getInt("TA/snd_totp", DEFAULT_SOUND_TOTP);
@@ -2996,6 +3070,74 @@ void handleSoundConfig(Keyboard_Class::KeysState kState, char kChar, bool isChan
         systemPreferences.putInt("TA/snd_kbd", internalState.SoundConfig_KeyboardSound);
         systemPreferences.putInt("TA/snd_totp", internalState.SoundConfig_TOTPSound);
         systemPreferences.putBool("TA/snd_scr", internalState.SoundConfig_ScreenCaptureSound);
+        switchExternalState(STATE_SETTINGS_MENU);
+        return;
+    }
+}
+
+void handleTimeoutConfig(Keyboard_Class::KeysState kState, char kChar, bool isChange) {
+    // Esc
+    if (isChange && kChar == '`') {
+        playKeyboardSound(kChar, kState);
+        internalState.TimeoutConfig_FieldIndex = 0;
+        internalState.TimeoutConfig_ScreenSaver = systemPreferences.getInt("TA/to_ssv", DEFAULT_SCREEN_SAVER);
+        internalState.TimeoutConfig_ScreenSaverInput = String(internalState.TimeoutConfig_ScreenSaver / 1000);
+        internalState.TimeoutConfig_VaultDeauth = systemPreferences.getInt("TA/to_vda", DEFAULT_VAULT_DEAUTH);
+        internalState.TimeoutConfig_VaultDeauthInput = String(internalState.TimeoutConfig_VaultDeauth / 1000);
+        switchExternalState(STATE_SETTINGS_MENU);
+        return;
+    }
+    // Tab
+    if (kState.tab) {
+        playKeyboardSound(kChar, kState);
+        internalState.TimeoutConfig_FieldIndex = (internalState.TimeoutConfig_FieldIndex + 1) % 2;
+        internalState.requiresRedraw = true;
+        return;
+    }
+    // Delete
+    if (kState.del) {
+        playKeyboardSound(kChar, kState);
+        switch (internalState.TimeoutConfig_FieldIndex) {
+        case 0: // Screen saver
+            if (internalState.TimeoutConfig_ScreenSaverInput.length() > 0)
+                internalState.TimeoutConfig_ScreenSaverInput.remove(internalState.TimeoutConfig_ScreenSaverInput.length() - 1);
+            break;
+        case 1: // Vault deauth
+            if (internalState.TimeoutConfig_VaultDeauthInput.length() > 0)
+                internalState.TimeoutConfig_VaultDeauthInput.remove(internalState.TimeoutConfig_VaultDeauthInput.length() - 1);
+            break;
+        }
+        internalState.requiresRedraw = true;
+        return;
+    }
+    // Digits
+    if (kChar >= '0' && kChar <= '9') {
+        playKeyboardSound(kChar, kState);
+        switch (internalState.TimeoutConfig_FieldIndex) {
+        case 0: // Screen saver
+            if (internalState.TimeoutConfig_ScreenSaverInput.length() < 4)
+                internalState.TimeoutConfig_ScreenSaverInput += kChar;
+            break;
+        case 1: // Vault deauth
+            if (internalState.TimeoutConfig_VaultDeauthInput.length() < 4)
+                internalState.TimeoutConfig_VaultDeauthInput += kChar;
+            break;
+        }
+        internalState.requiresRedraw = true;
+        return;
+    }
+    // Enter
+    if (isChange && kState.enter) {
+        playKeyboardSound(kChar, kState);
+        if (internalState.TimeoutConfig_ScreenSaverInput.length() == 0 || internalState.TimeoutConfig_VaultDeauthInput.length() == 0) return;
+
+        internalState.TimeoutConfig_FieldIndex = 0;
+        // Сохраняем в миллисекундах
+        internalState.TimeoutConfig_ScreenSaver = internalState.TimeoutConfig_ScreenSaverInput.toInt() * 1000;
+        systemPreferences.putInt("TA/to_ssv", internalState.TimeoutConfig_ScreenSaver);
+        internalState.TimeoutConfig_VaultDeauth = internalState.TimeoutConfig_VaultDeauthInput.toInt() * 1000;
+        systemPreferences.putInt("TA/to_vda", internalState.TimeoutConfig_VaultDeauth);
+
         switchExternalState(STATE_SETTINGS_MENU);
         return;
     }
@@ -3271,37 +3413,39 @@ void handleAccountEditor(Keyboard_Class::KeysState kState, char kChar, bool isCh
     // Enter
     if (isChange && kState.enter) {
         playKeyboardSound(kChar, kState);
+
         internalState.AccountEditor_NameInput.trim();
         internalState.AccountEditor_KeyInput.trim();
-        if (internalState.AccountEditor_NameInput.length() > 0 && internalState.AccountEditor_KeyInput.length() > 0) {
-            Account newAcc = {
-                internalState.AccountEditor_NameInput,
-                internalState.AccountEditor_KeyInput,
-                internalState.AccountEditor_AlgoInput,
-                internalState.AccountEditor_DigitsInput,
-                internalState.AccountEditor_PeriodInput,
-            };
-            // Если состояние изменения, то вставляем на место
-            if (internalState.AccountEditor_IsEditMode) savedAccounts[internalState.AccountList_SelectedIndex - 1] = newAcc;
-            // Иначе добавляем новый
-            else {
-                savedAccounts.push_back(newAcc);
-                internalState.AccountList_SelectedIndex = savedAccounts.size();
-                internalState.AccountList_ScrollOffset = max(0, internalState.AccountList_SelectedIndex - 3);
-            }
-            saveDataToStorage();
+        if (internalState.AccountEditor_NameInput.length() == 0 || internalState.AccountEditor_KeyInput.length() == 0) return;
 
-            drawMessage({"ACCOUNT", "SAVED"});
-            delay(400);
-
-            internalState.AccountEditor_FieldIndex = 0;
-            internalState.AccountEditor_NameInput = "";
-            internalState.AccountEditor_KeyInput = "";
-            internalState.AccountEditor_AlgoInput = 0;
-            internalState.AccountEditor_DigitsInput = 6;
-            internalState.AccountEditor_PeriodInput = 30;
-            switchExternalState(internalState.AccountEditor_IsEditMode ? STATE_ACCOUNT_OPTIONS : STATE_ACCOUNT_LIST);
+        Account newAcc = {
+            internalState.AccountEditor_NameInput,
+            internalState.AccountEditor_KeyInput,
+            internalState.AccountEditor_AlgoInput,
+            internalState.AccountEditor_DigitsInput,
+            internalState.AccountEditor_PeriodInput,
+        };
+        // Если состояние изменения, то вставляем на место
+        if (internalState.AccountEditor_IsEditMode) savedAccounts[internalState.AccountList_SelectedIndex - 1] = newAcc;
+        // Иначе добавляем новый
+        else {
+            savedAccounts.push_back(newAcc);
+            internalState.AccountList_SelectedIndex = savedAccounts.size();
+            internalState.AccountList_ScrollOffset = max(0, internalState.AccountList_SelectedIndex - 3);
         }
+        saveDataToStorage();
+
+        drawMessage({"ACCOUNT", "SAVED"});
+        delay(400);
+
+        internalState.AccountEditor_FieldIndex = 0;
+        internalState.AccountEditor_NameInput = "";
+        internalState.AccountEditor_KeyInput = "";
+        internalState.AccountEditor_AlgoInput = 0;
+        internalState.AccountEditor_DigitsInput = 6;
+        internalState.AccountEditor_PeriodInput = 30;
+        switchExternalState(internalState.AccountEditor_IsEditMode ? STATE_ACCOUNT_OPTIONS : STATE_ACCOUNT_LIST);
+
         return;
     }
 }
@@ -3426,6 +3570,7 @@ void processKeyboardEvents() {
     case STATE_WIFI_CONFIG:
     case STATE_WIFI_CONNECT:
     case STATE_SOUND_CONFIG:
+    case STATE_TIMEOUT_CONFIG:
     case STATE_VAULT_PASSWORD_CHANGE:
     case STATE_ACCOUNT_LIST:
     case STATE_ACCOUNT_OPTIONS:
@@ -3435,7 +3580,7 @@ void processKeyboardEvents() {
     }
 
     if (isChange || (millis() - internalState.lastKeyPressTime > keyRepeatDelay)) {
-        if (millis() - internalState.lastKeyPressTime > DEFAULT_SCREEN_SAVER) {
+        if (internalState.TimeoutConfig_ScreenSaver > 0 && (millis() - internalState.lastKeyPressTime > internalState.TimeoutConfig_ScreenSaver)) {
             // Нажатие для включения экрана не обрабатываем
             internalState.lastKeyPressTime = millis();
             return;
@@ -3475,6 +3620,9 @@ void processKeyboardEvents() {
             break;
         case STATE_SOUND_CONFIG:
             handleSoundConfig(kState, kChar, isChange);
+            break;
+        case STATE_TIMEOUT_CONFIG:
+            handleTimeoutConfig(kState, kChar, isChange);
             break;
         case STATE_VAULT_PASSWORD_CHANGE:
             handleVaultPasswordChange(kState, kChar, isChange);
@@ -3539,6 +3687,9 @@ void processUserInterface() {
         break;
     case STATE_SOUND_CONFIG:
         renderSoundConfig();
+        break;
+    case STATE_TIMEOUT_CONFIG:
+        renderTimeoutConfig();
         break;
     case STATE_VAULT_PASSWORD_CHANGE:
         renderVaultPasswordChange();
@@ -3743,8 +3894,8 @@ void processScreenCaptureEvents() {
 
 // --- ОБРАБОТЧИКИ ФОНОВЫХ ЗАДАЧ ---
 void processInternalStateEvents() {
-    // Отключение дисплея через DEFAULT_SCREEN_SAVER секунд
-    if (millis() - internalState.lastKeyPressTime > DEFAULT_SCREEN_SAVER) {
+    // Отключение дисплея через N > 0 секунд
+    if (internalState.TimeoutConfig_ScreenSaver > 0 && (millis() - internalState.lastKeyPressTime > internalState.TimeoutConfig_ScreenSaver)) {
         if (M5.Display.getBrightness() > 0) {
             M5.Display.sleep(); // Команда заснуть контроллеру дисплея
             M5.Display.setBrightness(0);
@@ -3756,8 +3907,11 @@ void processInternalStateEvents() {
         }
     }
 
-    // Деаутентификация через DEFAULT_VAULT_DEAUTH секунд
-    if ((millis() - internalState.lastKeyPressTime > DEFAULT_VAULT_DEAUTH) && internalState.isVaultAuthorized) {
+    // Деаутентификация через N > 0 секунд
+    if (internalState.TimeoutConfig_VaultDeauth > 0 && (millis() - internalState.lastKeyPressTime > internalState.TimeoutConfig_VaultDeauth) && internalState.isVaultAuthorized) {
+        drawMessage({"TIMEOUT", "VAULT LOCKED"});
+        delay(600);
+
         switchExternalState(STATE_VAULT_AUTH);
     }
 
@@ -3850,14 +4004,19 @@ void setup() {
     systemPreferences.begin("by_chillyc0de");
     internalState.TimeConfig_TimeInput = systemPreferences.getString("TA/time", MINIMUM_DATE);
     internalState.TimeConfig_UTCOffsetInput = systemPreferences.getInt("TA/utc", DEFAULT_UTC);
+
     internalState.BrightnessAdjust_BrightnessCounter = systemPreferences.getInt("TA/brght", DEFAULT_BRIGHTNESS);
     M5.Display.setBrightness(internalState.BrightnessAdjust_BrightnessCounter);
     internalState.VolumeAdjust_VolumeCounter = systemPreferences.getInt("TA/vol", DEFAULT_VOLUME);
     M5.Speaker.setVolume(internalState.VolumeAdjust_VolumeCounter);
+
     internalState.SoundConfig_ExternalStateSound = systemPreferences.getBool("TA/snd_es", DEFAULT_SOUND_ES);
     internalState.SoundConfig_KeyboardSound = systemPreferences.getInt("TA/snd_kbd", DEFAULT_SOUND_KBD);
     internalState.SoundConfig_TOTPSound = systemPreferences.getInt("TA/snd_totp", DEFAULT_SOUND_TOTP);
     internalState.SoundConfig_ScreenCaptureSound = systemPreferences.getBool("TA/snd_scr", DEFAULT_SOUND_SCR);
+
+    internalState.TimeoutConfig_ScreenSaver = systemPreferences.getInt("TA/to_ssv", DEFAULT_SCREEN_SAVER);
+    internalState.TimeoutConfig_VaultDeauth = systemPreferences.getInt("TA/to_vda", DEFAULT_VAULT_DEAUTH);
 
     SPI.begin(40, 39, 14, 12);
     // Проверка наличия SD
