@@ -31,8 +31,8 @@
 #include "mbedtls/md.h"
 #include "mbedtls/pkcs5.h"
 
-#define MINIMUM_UNIX_TS 1775347200
-#define MINIMUM_DATE "20260405000000"
+#define MINIMUM_UNIX_TS 1775692800
+#define MINIMUM_DATE "20260409000000"
 #define DEFAULT_UTC 3
 #define DEFAULT_BRIGHTNESS 80
 #define DEFAULT_SCREEN_SAVER 30000
@@ -45,7 +45,7 @@
 
 const char *DATA_FILE_PATH = "/by_chillyc0de/TOTP_Auth/data";              // Без "/" в конце
 const char *SCREEN_CAPTURE_DIR_PATH = "/by_chillyc0de/TOTP_Auth/captures"; // Без "/" в конце
-const char *FIRMWARE_VERSION = "v1.6.1";
+const char *FIRMWARE_VERSION = "v1.6.2";
 
 const int SCREEN_WIDTH = 240;
 const int SCREEN_HEIGHT = 135;
@@ -2535,77 +2535,73 @@ void handleTimeConfig(Keyboard_Class::KeysState kState, char kChar, bool isChang
                 }
 
                 if (WiFi.status() == WL_CONNECTED) {
-                    drawMessage({"Fetching...", "www.timeapi.io"});
+                    // Настройка NTP с 0, 0 оффсетами
+                    configTime(0, 0, "pool.ntp.org", "time.nist.gov", "time.google.com");
 
-                    HTTPClient http;
-                    http.begin("https://www.timeapi.io/api/v1/time/current/unix?timezone=UTC");
+                    struct tm timeinfo;
+                    bool ntpSuccess = false;
+                    int ntpTimeout = 14; // 7 секунд при (500мс)
 
-                    int httpCode = http.GET();
-                    if (httpCode == HTTP_CODE_OK) {
-                        String payload = http.getString();
-                        http.end();
-                        WiFi.disconnect();
-
-                        JsonDocument doc;
-                        DeserializationError error = deserializeJson(doc, payload);
-                        if (!error) {
-                            long unixtime = doc["unix_timestamp"];
-
-                            // Установка времени
-                            struct timeval tv = {.tv_sec = unixtime, .tv_usec = 0};
-                            settimeofday(&tv, NULL);
-
-                            // Применяем оффсет
-                            time_t localTime = unixtime + (internalState.TimeConfig_UTCOffsetInput * 3600);
-
-                            // Получаем структуру разбитого времени
-                            struct tm timeinfo;
-                            gmtime_r(&localTime, &timeinfo); // Смещенное время
-
-                            // Форматируем строки для сообщения
-                            char dateBuf[12]; // YYYY-MM-DD\0
-                            char timeBuf[10]; // HH-MM-SS\0
-                            sprintf(dateBuf, "%04d-%02d-%02d", timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
-                            sprintf(timeBuf, "%02d:%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
-
-                            drawMessage({dateBuf, timeBuf}, UI_VALID);
-                            delay(800);
-
-                            char sysTimeBuf[15]; // YYYYMMDDHHMMSS\0
-                            sprintf(sysTimeBuf, "%04d%02d%02d%02d%02d%02d",
-                                timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
-                                timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
-
-                            systemPreferences.putString("TA/time", String(sysTimeBuf));
-                            systemPreferences.putInt("TA/utc", internalState.TimeConfig_UTCOffsetInput);
-
-                            isTimeSynced = true;
-                            break; // Выходим из цикла сетей - время получено и сохранено!
-
-                        } else {
-                            drawMessage({"JSON Error", error.c_str()}, UI_DANGER);
-                            delay(1000);
+                    // getLocalTime сама ждет синхронизации, второй параметр - таймаут в мс
+                    while (ntpTimeout > 0) {
+                        if (getLocalTime(&timeinfo, 500)) {
+                            ntpSuccess = true;
+                            break;
                         }
-                    } else {
-                        http.end();
-                        WiFi.disconnect();
+                        ntpTimeout--;
+                        drawMessage({"Fetching...", "NTP"});
+                    }
+                    WiFi.disconnect();
 
-                        drawMessage({"HTTP Error", (String)httpCode}, UI_DANGER);
+                    if (ntpSuccess) {
+                        // Получаем текущий unix timestamp (в UTC)
+                        time_t now;
+                        time(&now);
+
+                        // Применяем оффсет
+                        time_t localTime = now + (internalState.TimeConfig_UTCOffsetInput * 3600);
+
+                        // Получаем структуру разбитого времени
+                        gmtime_r(&localTime, &timeinfo); // Смещенное время
+
+                        // Форматируем строки для сообщения
+                        char dateBuf[12]; // YYYY-MM-DD\0
+                        char timeBuf[10]; // HH:MM:SS\0
+                        sprintf(dateBuf, "%04d-%02d-%02d", timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+                        sprintf(timeBuf, "%02d:%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+
+                        drawMessage({dateBuf, timeBuf}, UI_VALID);
+                        delay(800);
+
+                        // Форматируем строку для сохранения
+                        char sysTimeBuf[15]; // YYYYMMDDHHMMSS\0
+                        sprintf(sysTimeBuf, "%04d%02d%02d%02d%02d%02d",
+                            timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                            timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+
+                        systemPreferences.putString("TA/time", String(sysTimeBuf));
+                        systemPreferences.putInt("TA/utc", internalState.TimeConfig_UTCOffsetInput);
+
+                        isTimeSynced = true;
+                        break; // Выходим из цикла сетей - время получено и сохранено!
+
+                    } else {
+                        drawMessage({"NTP Error", "Timeout"}, UI_WARNING);
                         delay(1000);
                     }
                 } else {
                     WiFi.disconnect();
 
-                    drawMessage({"Connection failed!"}, UI_FG, UI_DANGER);
+                    drawMessage({"Connection failed!"}, UI_FG, UI_WARNING);
                     delay(600);
                 }
             }
             if (!isTimeSynced) {
-                drawMessage({"Time sync", "failed!"}, UI_FG, UI_WARNING);
+                drawMessage({"Time sync", "failed!"}, UI_FG, UI_DANGER);
                 delay(1500);
             }
         } else {
-            drawMessage({"No Wi-Fi", "O_O"}, UI_FG, UI_WARNING);
+            drawMessage({"No Wi-Fi", "O_O"}, UI_FG, UI_DANGER);
             delay(1500);
         }
 
